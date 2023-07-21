@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<odoo>
+
+    <record id="res_config_settings_view_form_inherit" model="ir.ui.view">
+        <field name="name">res.config.settings.view.form.inherit</field>
+        <field name="model">res.config.settings</field>
+        <field name="priority" eval="5"/>
+        <field name="inherit_id" ref="base_setup.res_config_settings_view_form"/>
+        <field name="arch" type="xml">
+            <xpath expr="//div[@id='business_documents']" position="before">
+                <h2>FTP Emplacement</h2>
+                <div class="row mt16 o_settings_container" id="ftp_path">
+                    <div class="col-12 col-lg-6 o_setting_box" title="FTP Path">
+                        <div class="o_setting_right_pane">
+                            <label for="sage_path_stock" string="Entrée Stock"/>
+                            <field name="sage_path_stock"/>
+                        </div>
+                        <div class="o_setting_right_pane">
+                            <label for="sage_sale_export"/>
+                            <field name="sage_sale_export"/>                            
+                        </div>
+                    </div>
+                </div>
+            </xpath>
+        </field>
+    </record>
+
+</odoo>

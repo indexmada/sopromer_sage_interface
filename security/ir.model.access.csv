@@ -1,0 +1,2 @@
+id,name,model_id:id,group_id:id,perm_read,perm_write,perm_create,perm_unlink
+access_sopromer_sage_interface_sopromer_sage_interface,sopromer_sage_interface.sopromer_sage_interface,model_sopromer_sage_interface_sopromer_sage_interface,,1,0,0,0
