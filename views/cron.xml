@@ -4,7 +4,7 @@
 		<field name="name">FTP SAGE SOPRO</field>
 		<field name="model_id" ref="model_product_template"/>
 		<field name="interval_number">1</field>
-		<field name="interval_type">days</field>
+		<field name="interval_type">hours</field>
 		<field name="active">True</field>
 		<field name="code">
 			model.sage_sopro_update_stock()
@@ -21,4 +21,15 @@
 			model.sage_sopro_pos_report()
 		</field>
 	</record> -->
+
+	<record id="upate_price" model="ir.cron">
+		<field name="name">SAGE update price</field>
+		<field name="model_id" ref="product.model_product_template"/>
+		<field name="interval_number">1</field>
+		<field name="interval_type">hours</field>
+		<field name="active">1</field>
+		<field name="code">
+			model.update_price()
+		</field>
+	</record>
 </odoo>

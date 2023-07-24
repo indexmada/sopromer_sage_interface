@@ -19,6 +19,10 @@
                             <label for="sage_sale_export"/>
                             <field name="sage_sale_export"/>                            
                         </div>
+                        <div class="o_setting_right_pane">
+                            <label for="sage_path_tarif"/>
+                            <field name="sage_path_tarif"/>                            
+                        </div>
                     </div>
                 </div>
             </xpath>

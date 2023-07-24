@@ -88,7 +88,7 @@ class productTemplate(models.Model):
 					product_tmpl = self.env['product.template'].sudo().create({
 						"name": prod_name,
 						# "default_code": ref_prod,
-						"list_price": float(price.replace(',','.')),
+						"standard_price": float(price.replace(',','.')),
 						"type": 'product',
 						"new_dc": ref_prod,
 						"available_in_pos": True
@@ -127,3 +127,34 @@ class productTemplate(models.Model):
 			if file.endswith(ext):
 				result.append(os.path.join(search_path, file))
 		return result
+
+	def update_price(self):
+		sage_path_tarif = self.env.user.company_id.sage_path_tarif
+		print('*_'*50)
+		if sage_path_tarif:
+			files_tab = self.find_files(".csv", sage_path_tarif)
+			for file in files_tab:
+				f = open(file, "r")
+
+				data_file_char = f.read()
+				data_file = data_file_char.split('\n')
+				self.write_public_price(data_file)
+
+				f.close()
+				os.remove(file)
+
+	def write_public_price(self, data):
+		for i in data:
+			print(i)
+			val = i.split(';')
+			print(val)
+			external_id = val[0]
+			try:
+				public_price = val[1]
+			except:
+				public_price = 0
+
+			product_tmpl_ids = self.env['product.template'].sudo().search([]).filtered(lambda prod: prod.ext_id == external_id)
+
+			for prod in product_tmpl_ids:
+				prod.write({'list_price': int(public_price)})
