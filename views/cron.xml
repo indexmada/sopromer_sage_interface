@@ -11,14 +11,14 @@
 		</field>
 	</record>
 
-	<record id="cron_sage_sopro_report_pos" model="ir.cron">
+<!-- 	<record id="cron_sage_sopro_report_pos" model="ir.cron">
 		<field name="name">SAGE POS REPORT</field>
 		<field name="model_id" ref="point_of_sale.model_pos_order"/>
 		<field name="interval_number">1</field>
 		<field name="interval_type">days</field>
-		<field name="active">1</field>
+		<field name="active">0</field>
 		<field name="code">
 			model.sage_sopro_pos_report()
 		</field>
-	</record>
+	</record> -->
 </odoo>

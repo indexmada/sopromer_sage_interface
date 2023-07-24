@@ -7,6 +7,14 @@ import os
 class productTemplate(models.Model):
 	_inherit="product.template"
 
+	new_dc = fields.Char("New Dc")
+	ext_id = fields.Char(string="ext id", compute="_compute_ext_id")
+
+	def _compute_ext_id(self):
+		for rec in self:
+			val = self.env['ir.model.data'].sudo().search([('model', '=', 'product.template'), ('res_id', '=', rec.id)], limit=1)
+			rec.ext_id = val.name or None
+
 	def sage_sopro_update_stock(self):
 		sage_path_stock = self.env.user.company_id.sage_path_stock
 
@@ -75,13 +83,21 @@ class productTemplate(models.Model):
 				prod_name = line_val[2]
 				qty = line_val[3]
 				price = line_val[4]
-				product_tmpl = self.env['product.template'].sudo().search([('default_code', '=', ref_prod)])
+				product_tmpl = self.env['product.template'].sudo().search([]).filtered(lambda p: p.ext_id == ref_prod)
 				if not product_tmpl:
 					product_tmpl = self.env['product.template'].sudo().create({
 						"name": prod_name,
-						"default_code": ref_prod,
+						# "default_code": ref_prod,
 						"list_price": float(price.replace(',','.')),
-						"type": 'product'
+						"type": 'product',
+						"new_dc": ref_prod,
+						"available_in_pos": True
+						})
+
+					self.env['ir.model.data'].sudo().create({
+						"name": ref_prod,
+						"model": "product.template",
+						"res_id": product_tmpl.id
 						})
 
 				stock_move_vals = {
