@@ -6,6 +6,12 @@ from datetime import datetime,date
 import os
 import csv
 
+import paramiko
+
+HOSTNAME = "ftp.cluster027.hosting.ovh.net"
+USERNAME = "sopemoa"
+PWD = "K71xiVEUb9cc12xuscHq"
+
 class posSession(models.Model):
 	_inherit = "pos.session"
 
@@ -22,11 +28,18 @@ class posSession(models.Model):
 			filename = "sale_export"+session_name+".csv"
 			file = sage_sale_export+'/'+filename
 
-			file_found = self.find_files(filename, sage_sale_export)
-			if file_found:
-				os.remove(file)
+			# file_found = self.find_files(filename, sage_sale_export)
+			# if file_found:
+			# 	os.remove(file)
 
-			with open(file, mode='a') as f:
+			# SSH
+			ssh = paramiko.SSHClient()
+			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+			ssh.connect(hostname=HOSTNAME, username=USERNAME, password=PWD)
+			sftp = ssh.open_sftp()
+			# END SSH
+
+			with sftp.open(file, mode='a') as f:
 				writer = csv.writer(f, delimiter=';', quotechar='"', quoting=csv.QUOTE_NONE)
 
 				session_id = self
@@ -37,6 +50,7 @@ class posSession(models.Model):
 					for line in order.lines:
 						time_order = order.date_order.strftime("%H:%M:%S")
 						writer.writerow(['L', line.product_id.ext_id,line.qty,line.price_subtotal_incl,line.product_id.standard_price,time_order,order.user_id.name,order.name])
+			ssh.close()
 		else:
 			print("No Path Found to export Sale")
 
