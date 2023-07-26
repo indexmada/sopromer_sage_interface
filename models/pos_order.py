@@ -25,7 +25,11 @@ class posSession(models.Model):
 		sage_sale_export = self.env.user.company_id.sage_sale_export
 		session_name = self.name.replace('/', '-')
 		if sage_sale_export:
-			filename = "sale_export"+session_name+".csv"
+
+			date_str = datetime.now().strftime("%d-%m-%Y %H%M%S")
+
+			# filename = "sale_export"+session_name+".csv"
+			filename = "Facture"+str(date_str)+".csv"
 			file = sage_sale_export+'/'+filename
 
 			# file_found = self.find_files(filename, sage_sale_export)
@@ -45,7 +49,7 @@ class posSession(models.Model):
 				session_id = self
 				stop_date = session_id.stop_at.strftime("%m/%d/%Y")
 				# writer.writerow(['E', session_id.config_id.name, stop_date,'',''])
-				writer.writerow(['E', session_id.account_move.name, stop_date,'',''])
+				writer.writerow(['E', session_id.account_move.name, stop_date,'',session_id.config_id.code_pdv_sage,session_id.config_id.souche])
 				for order in session_id.order_ids:
 					for line in order.lines:
 						time_order = order.date_order.strftime("%H:%M:%S")
@@ -80,3 +84,9 @@ class posSession(models.Model):
 
 		self.sage_sopro_pos_report()
 		return True
+
+class posConfig(models.Model):
+	_inherit = "pos.config"
+
+	code_pdv_sage = fields.Char("Code Echope")
+	souche = fields.Char("Souche")

@@ -1,60 +1,31 @@
 <odoo>
   <data>
     <!-- explicit list view definition -->
-    <!--
-    <record model="ir.ui.view" id="sopromer_sage_interface.list">
-      <field name="name">sopromer_sage_interface list</field>
-      <field name="model">sopromer_sage_interface.sopromer_sage_interface</field>
+    
+    <record model="ir.ui.view" id="pos_sage_inherit">
+      <field name="name">pos.config.inherit.sage</field>
+      <field name="model">pos.config</field>
+      <field name="inherit_id" ref="point_of_sale.pos_config_view_form"/>
       <field name="arch" type="xml">
-        <tree>
-          <field name="name"/>
-          <field name="value"/>
-          <field name="value2"/>
-        </tree>
+        <xpath expr="//h2[@name='order']" position="before">
+          <h2 name="sage">Sage Interface</h2>
+          <div class="row mt16 o_settings_container">
+            <div class="col-12 col-lg-6 o_setting_box">
+              <div class="o_setting_right_pane">
+                  <label for="code_pdv_sage"/>
+                  <field name="code_pdv_sage" placeholder="E0XX"/>
+              </div>
+            </div>
+            <div class="col-12 col-lg-6 o_setting_box">
+              <div class="o_setting_right_pane">
+                  <label for="souche"/>
+                  <field name="souche" placeholder="DITXXX"/>
+              </div>
+            </div>
+          </div>
+        </xpath>
       </field>
     </record>
-    -->
-
-    <!-- actions opening views on models -->
-    <!--
-    <record model="ir.actions.act_window" id="sopromer_sage_interface.action_window">
-      <field name="name">sopromer_sage_interface window</field>
-      <field name="res_model">sopromer_sage_interface.sopromer_sage_interface</field>
-      <field name="view_mode">tree,form</field>
-    </record>
-    -->
-
-    <!-- server action to the one above -->
-    <!--
-    <record model="ir.actions.server" id="sopromer_sage_interface.action_server">
-      <field name="name">sopromer_sage_interface server</field>
-      <field name="model_id" ref="model_sopromer_sage_interface_sopromer_sage_interface"/>
-      <field name="state">code</field>
-      <field name="code">
-        action = {
-          "type": "ir.actions.act_window",
-          "view_mode": "tree,form",
-          "res_model": self._name,
-        }
-      </field>
-    </record>
-    -->
-
-    <!-- Top menu item -->
-    <!--
-    <menuitem name="sopromer_sage_interface" id="sopromer_sage_interface.menu_root"/>
-    -->
-    <!-- menu categories -->
-    <!--
-    <menuitem name="Menu 1" id="sopromer_sage_interface.menu_1" parent="sopromer_sage_interface.menu_root"/>
-    <menuitem name="Menu 2" id="sopromer_sage_interface.menu_2" parent="sopromer_sage_interface.menu_root"/>
-    -->
-    <!-- actions -->
-    <!--
-    <menuitem name="List" id="sopromer_sage_interface.menu_1_list" parent="sopromer_sage_interface.menu_1"
-              action="sopromer_sage_interface.action_window"/>
-    <menuitem name="Server to list" id="sopromer_sage_interface" parent="sopromer_sage_interface.menu_2"
-              action="sopromer_sage_interface.action_server"/>
-    -->
+    
   </data>
 </odoo>
