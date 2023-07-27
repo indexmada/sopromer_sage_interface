@@ -47,13 +47,16 @@ class posSession(models.Model):
 				writer = csv.writer(f, delimiter=';', quotechar='"', quoting=csv.QUOTE_NONE)
 
 				session_id = self
-				stop_date = session_id.stop_at.strftime("%m/%d/%Y")
+				stop_date = session_id.stop_at.strftime("%d/%m/%Y")
 				# writer.writerow(['E', session_id.config_id.name, stop_date,'',''])
 				writer.writerow(['E', session_id.account_move.name, stop_date,'',session_id.config_id.code_pdv_sage,session_id.config_id.souche])
 				for order in session_id.order_ids:
 					for line in order.lines:
 						time_order = order.date_order.strftime("%H:%M:%S")
-						writer.writerow(['L', line.product_id.ext_id,line.qty,line.price_subtotal_incl,line.product_id.standard_price,time_order,order.user_id.name,order.name])
+						xqty = str(line.qty).replace('.', ',')
+						xprice_subtot = str(line.price_subtotal_incl).replace('.', ',')
+						xstandard_p = str(line.product_id.standard_price).replace('.', ',')
+						writer.writerow(['L', line.product_id.ext_id,xqty,xprice_subtot,xstandard_p,time_order,order.user_id.name,order.name])
 			ssh.close()
 		else:
 			print("No Path Found to export Sale")
