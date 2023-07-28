@@ -45,7 +45,7 @@ class productTemplate(models.Model):
 				data_file_char = f.read()
 				data_file_char = data_file_char.decode('utf-8')
 
-				self.remove_file(".csv", sage_path_stock)
+				self.remove_file_subdir(".csv", sage_path_stock)
 
 				data_file = data_file_char.split('\n')
 				self.write_stock(data_file)
@@ -176,6 +176,24 @@ class productTemplate(models.Model):
 					fn = search_path+'/'+file
 					result.append(fn)
 		return result
+
+	def remove_file_subdir(self, ext, search_path):
+		conn = pysftp.Connection(host=HOSTNAME,username=USERNAME, password=PWD)
+
+		dir_tab = []
+		with conn.cd(search_path):
+			content = conn.listdir()
+			for i in content:
+				if i.find('.') <0:
+					dir_tab.append(i)
+
+		for dirname in dir_tab:
+			dir_path = search_path+'/'+dirname
+			with conn.cd(dir_path):
+				files = conn.listdir()
+				for file in files:
+					if (file[-4:]==ext):
+						conn.remove(file)
 
 	def remove_file(self, ext, search_path):
 		conn = pysftp.Connection(host=HOSTNAME,username=USERNAME, password=PWD)
