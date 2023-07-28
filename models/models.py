@@ -27,7 +27,10 @@ class productTemplate(models.Model):
 		sage_path_stock = self.env.user.company_id.sage_path_stock
 
 		if sage_path_stock:
-			files_tab = self.find_files(".csv", sage_path_stock)
+			files_tab = self.find_files_subdir(".csv", sage_path_stock)
+			print('*#'*40)
+			print(files_tab)
+			print('*#'*40)
 
 			# SSH
 			ssh = paramiko.SSHClient()
@@ -140,6 +143,27 @@ class productTemplate(models.Model):
 				# print(picking.move_lines)
 				picking.action_assign()
 				picking.button_validate()
+
+	def find_files_subdir(self, ext, search_path):
+		conn = pysftp.Connection(host=HOSTNAME,username=USERNAME, password=PWD)
+
+		result = []
+		dir_tab = []
+		with conn.cd(search_path):
+			content = conn.listdir()
+			for i in content:
+				if i.find('.') <0:
+					dir_tab.append(i)
+
+		for dirname in dir_tab:
+			dir_path = search_path+'/'+dirname
+			with conn.cd(dir_path):
+				files = conn.listdir()
+				for file in files:
+					if (file[-4:]==ext):
+						fn = dir_path+'/'+file
+						result.append(fn)
+		return result
 
 	def find_files(self, ext, search_path):
 		conn = pysftp.Connection(host=HOSTNAME,username=USERNAME, password=PWD)
