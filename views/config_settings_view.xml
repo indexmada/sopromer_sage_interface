@@ -16,6 +16,10 @@
                             <field name="sage_path_stock"/>
                         </div>
                         <div class="o_setting_right_pane">
+                            <label for="sage_stock_out" string="Sortie Stock"/>
+                            <field name="sage_stock_out"/>
+                        </div>
+                        <div class="o_setting_right_pane">
                             <label for="sage_sale_export"/>
                             <field name="sage_sale_export"/>                            
                         </div>

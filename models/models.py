@@ -24,6 +24,7 @@ class productTemplate(models.Model):
 			rec.ext_id = val.name or None
 
 	def sage_sopro_update_stock(self):
+		self.sage_sopro_stock_out()
 		sage_path_stock = self.env.user.company_id.sage_path_stock
 
 		if sage_path_stock:
@@ -54,17 +55,50 @@ class productTemplate(models.Model):
 				
 			ssh.close()
 
-	def get_picking_type(self):
+	def sage_sopro_stock_out(self):
+		sage_stock_out = self.env.user.company_id.sage_stock_out
+
+		if sage_stock_out:
+			files_tab = self.find_files_subdir(".csv", sage_stock_out)
+
+			# SSH
+			ssh = paramiko.SSHClient()
+			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+			ssh.connect(hostname=HOSTNAME, username=USERNAME, password=PWD)
+			sftp = ssh.open_sftp()
+			# END SSH
+
+			for file in files_tab:
+				f = sftp.open(file, "r")
+
+				data_file_char = f.read()
+				data_file_char = data_file_char.decode('utf-8')
+
+				self.remove_file_subdir(".csv", sage_stock_out)
+
+				data_file = data_file_char.split('\n')
+				self.write_stock(data_file, 'out')
+
+				f.close()
+				
+			ssh.close()
+
+	def get_picking_type(self, xtype):
 		type_obj = self.env['stock.picking.type']
 		company_id = self.env.user.company_id.id
 
-		types = type_obj.search([('code', '=', 'incoming'), ('warehouse_id.company_id', '=', company_id)])
+		if xtype == 'in':
+			ptype = 'incoming'
+		else:
+			ptype = 'outgoing'
+
+		types = type_obj.search([('code', '=', ptype), ('warehouse_id.company_id', '=', company_id)])
 		if not types:
-			types = type_obj.search([('code', '=', 'incoming'), ('warehouse_id', '=', False)])
+			types = type_obj.search([('code', '=', ptype), ('warehouse_id', '=', False)])
 		val = types[:1]
 		return val
 
-	def write_stock(self, data):
+	def write_stock(self, data, xtype='in'):
 		stock_picking_id = False
 		stock_picking_ids = self.env['stock.picking'].sudo()
 		print('----------',stock_picking_ids)
@@ -97,7 +131,7 @@ class productTemplate(models.Model):
 					"location_dest_id": location_dest.id,
 					"name": line_val[4],
 					"picking_type_code": 'incoming',
-					"picking_type_id": self.get_picking_type().id
+					"picking_type_id": self.get_picking_type(xtype).id
 				}
 				stock_picking_id = self.env['stock.picking'].sudo().create(stock_picking_vals)
 				stock_picking_ids |= stock_picking_id
