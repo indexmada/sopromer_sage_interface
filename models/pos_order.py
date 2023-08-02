@@ -23,18 +23,12 @@ class posSession(models.Model):
 		# session_ids = self.env['pos.session'].sudo().search([('reported', '=', False), ('state', '=', 'closed')])
 		
 		sage_sale_export = self.env.user.company_id.sage_sale_export
-		session_name = self.name.replace('/', '-')
 		if sage_sale_export:
 
 			date_str = datetime.now().strftime("%d-%m-%Y %H%M%S")
 
-			# filename = "sale_export"+session_name+".csv"
 			filename = "Facture"+str(date_str)+".csv"
-			file = sage_sale_export+'/'+filename
-
-			# file_found = self.find_files(filename, sage_sale_export)
-			# if file_found:
-			# 	os.remove(file)
+			file = sage_sale_export+'/'+str(self.config_id.code_pdv_sage)+'/'+filename
 
 			# SSH
 			ssh = paramiko.SSHClient()
