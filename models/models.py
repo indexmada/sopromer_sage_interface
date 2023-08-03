@@ -8,9 +8,13 @@ import pysftp
 
 import paramiko
 
-HOSTNAME = "ftp.cluster027.hosting.ovh.net"
-USERNAME = "sopemoa"
-PWD = "K71xiVEUb9cc12xuscHq"
+# HOSTNAME = "ftp.cluster027.hosting.ovh.net"
+# USERNAME = "sopemoa"
+# PWD = "K71xiVEUb9cc12xuscHq"
+
+FILE_NAME_TARIF = "Tarif"
+FILE_NAME_ENTREE = "EntrerStoc"
+FILE_NAME_SORTIE = "SortieStoc"
 
 class productTemplate(models.Model):
 	_inherit="product.template"
@@ -24,29 +28,29 @@ class productTemplate(models.Model):
 			rec.ext_id = val.name or None
 
 	def sage_sopro_update_stock(self):
-		self.sage_sopro_stock_out()
 		sage_path_stock = self.env.user.company_id.sage_path_stock
 
 		if sage_path_stock:
-			files_tab = self.find_files_subdir(".csv", sage_path_stock)
-			print('*#'*40)
-			print(files_tab)
-			print('*#'*40)
+			files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
+			entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE)>=0, files_tab))
+			sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE)>=0, files_tab))
+			print('files_tab entree : ', entree_files_tab)
+			self.sage_sopro_stock_out(sortie_files_tab)
 
 			# SSH
 			ssh = paramiko.SSHClient()
 			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-			ssh.connect(hostname=HOSTNAME, username=USERNAME, password=PWD)
+			ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
 			sftp = ssh.open_sftp()
 			# END SSH
 
-			for file in files_tab:
+			for file in entree_files_tab:
 				f = sftp.open(file, "r")
 
 				data_file_char = f.read()
 				data_file_char = data_file_char.decode('utf-8')
 
-				self.remove_file_subdir(".csv", sage_path_stock)
+				self.remove_file_subdir(file)
 
 				data_file = data_file_char.split('\n')
 				self.write_stock(data_file)
@@ -55,16 +59,17 @@ class productTemplate(models.Model):
 				
 			ssh.close()
 
-	def sage_sopro_stock_out(self):
+	def sage_sopro_stock_out(self, files_tab):
 		sage_stock_out = self.env.user.company_id.sage_stock_out
 
-		if sage_stock_out:
-			files_tab = self.find_files_subdir(".csv", sage_stock_out)
+		print('#_*'*30)
+		print('files_tab sortie: ', files_tab)
 
+		if sage_stock_out and files_tab:
 			# SSH
 			ssh = paramiko.SSHClient()
 			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-			ssh.connect(hostname=HOSTNAME, username=USERNAME, password=PWD)
+			ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
 			sftp = ssh.open_sftp()
 			# END SSH
 
@@ -74,7 +79,7 @@ class productTemplate(models.Model):
 				data_file_char = f.read()
 				data_file_char = data_file_char.decode('utf-8')
 
-				self.remove_file_subdir(".csv", sage_stock_out)
+				self.remove_file_subdir(file)
 
 				data_file = data_file_char.split('\n')
 				self.write_stock(data_file, 'out')
@@ -178,8 +183,8 @@ class productTemplate(models.Model):
 				picking.action_assign()
 				picking.button_validate()
 
-	def find_files_subdir(self, ext, search_path):
-		conn = pysftp.Connection(host=HOSTNAME,username=USERNAME, password=PWD)
+	def find_files_subdir(self, ext, search_path, xtype):
+		conn = pysftp.Connection(host=self.env.user.company_id.hostname,username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
 
 		result = []
 		dir_tab = []
@@ -189,75 +194,53 @@ class productTemplate(models.Model):
 				if i.find('.') <0:
 					dir_tab.append(i)
 
+		print(dir_tab)
 		for dirname in dir_tab:
 			dir_path = search_path+'/'+dirname
+			print(dirname)
 			with conn.cd(dir_path):
 				files = conn.listdir()
 				for file in files:
-					if (file[-4:]==ext):
-						fn = dir_path+'/'+file
-						result.append(fn)
+					if xtype in ['E', 'S']:
+						if (file[-4:]==ext and (file.find(FILE_NAME_ENTREE) >= 0 or file.find(FILE_NAME_SORTIE) >= 0)):
+							print('file (y): ',file)
+							fn = dir_path+'/'+file
+							result.append(fn)
+					else:
+						if (file[-4:]==ext and file.find(FILE_NAME_TARIF) >= 0):
+							print('file (y): ',file)
+							fn = dir_path+'/'+file
+							result.append(fn)
 		return result
 
-	def find_files(self, ext, search_path):
-		conn = pysftp.Connection(host=HOSTNAME,username=USERNAME, password=PWD)
+	def remove_file_subdir(self, file):
+		print('removing file: ', file)
+		conn = pysftp.Connection(host=self.env.user.company_id.hostname,username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
 
-		result = []
-		with conn.cd(search_path):
-			files = conn.listdir()
-			for file in files:
-				if (file[-4:]==ext):
-					fn = search_path+'/'+file
-					result.append(fn)
-		return result
-
-	def remove_file_subdir(self, ext, search_path):
-		conn = pysftp.Connection(host=HOSTNAME,username=USERNAME, password=PWD)
-
-		dir_tab = []
-		with conn.cd(search_path):
-			content = conn.listdir()
-			for i in content:
-				if i.find('.') <0:
-					dir_tab.append(i)
-
-		for dirname in dir_tab:
-			dir_path = search_path+'/'+dirname
-			with conn.cd(dir_path):
-				files = conn.listdir()
-				for file in files:
-					if (file[-4:]==ext):
-						conn.remove(file)
-
-	def remove_file(self, ext, search_path):
-		conn = pysftp.Connection(host=HOSTNAME,username=USERNAME, password=PWD)
-
-		with conn.cd(search_path):
-			files = conn.listdir()
-			for file in files:
-				if (file[-4:]==ext):
-					conn.remove(file)
+		conn.remove(file)
 
 	def update_price(self):
 		sage_path_tarif = self.env.user.company_id.sage_path_tarif
 		print('*_'*50)
 		if sage_path_tarif:
-			files_tab = self.find_files(".csv", sage_path_tarif)
-
+			files_tab = self.find_files_subdir(".csv", sage_path_tarif, "T")
+			print('####')
+			print(files_tab)
 			# SSH
 			ssh = paramiko.SSHClient()
 			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-			ssh.connect(hostname=HOSTNAME, username=USERNAME, password=PWD)
+			ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
 			sftp = ssh.open_sftp()
 			# END SSH
 
 			for file in files_tab:
+				print('f')
 				f = sftp.open(file, "r")
 
 				data_file_char = f.read()
 				data_file_char = data_file_char.decode('utf-8')
 
-				self.remove_file(".csv", sage_path_tarif)
+				self.remove_file_subdir(file)
 				data_file = data_file_char.split('\n')
 				self.write_public_price(data_file)
 

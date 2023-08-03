@@ -28,6 +28,20 @@
                             <field name="sage_path_tarif"/>                            
                         </div>
                     </div>
+                    <div class="col-12 col-lg-6 o_setting_box" title="FTP Hôte">
+                        <div class="o_setting_right_pane">
+                            <label for="hostname"/>
+                            <field name="hostname"/>
+                        </div>
+                        <div class="o_setting_right_pane">
+                            <label for="hostusername"/>
+                            <field name="hostusername"/>
+                        </div>
+                        <div class="o_setting_right_pane">
+                            <label for="hostmdp"/>
+                            <field name="hostmdp"/>                            
+                        </div>
+                    </div>
                 </div>
             </xpath>
         </field>
