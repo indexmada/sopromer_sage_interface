@@ -122,22 +122,34 @@ class productTemplate(models.Model):
 						})
 
 				# Depot destination
-				location_dest_name = line_val[3]
-				location_dest = self.env['stock.location'].sudo().search([('name', '=', location_dest_name)])
-				if not location_dest:
-					location_dest = self.env['stock.location'].sudo().create({
-						"name": location_dest_name
-						})
+				# location_dest_name = line_val[3]
+				# location_dest = self.env['stock.location'].sudo().search([('name', '=', location_dest_name)])
+				# if not location_dest:
+				# 	location_dest = self.env['stock.location'].sudo().create({
+				# 		"name": location_dest_name
+				# 		})
 
 				# stock_picking
 				stock_picking_vals = {
 					"date_done": date_done,
-					"location_id": location_source.id,
-					"location_dest_id": location_dest.id,
 					"name": line_val[4],
-					"picking_type_code": 'incoming',
 					"picking_type_id": self.get_picking_type(xtype).id
 				}
+
+				if xtype == 'in':
+					stock_picking_vals["picking_type_code"] = 'incoming'
+					stock_picking_vals["location_dest_id"] = location_source.id
+					l_dest = location_source
+					stock_picking_vals["location_id"] = self.env['stock.warehouse'].search([('company_id', '=', self.env.user.company_id.id)], limit=1).lot_stock_id.id
+					l_source = self.env['stock.warehouse'].search([('company_id', '=', self.env.user.company_id.id)], limit=1).lot_stock_id
+				else:
+					stock_picking_vals["picking_type_code"] = 'outgoing'
+					stock_picking_vals["location_id"] = location_source.id
+					l_source = location_source
+					stock_picking_vals["location_dest_id"] = self.get_partner_location().id
+					l_dest = self.get_partner_location()
+
+
 				stock_picking_id = self.env['stock.picking'].sudo().create(stock_picking_vals)
 				stock_picking_ids |= stock_picking_id
 			elif stock_picking_id and len(line_val)>3:
@@ -168,8 +180,8 @@ class productTemplate(models.Model):
 					"product_uom_qty": float(qty.replace(',','.')),
 					"quantity_done": float(qty.replace(',','.')),
 					"picking_id": stock_picking_id.id,
-					"location_id": location_source.id,
-					"location_dest_id": location_dest.id,
+					"location_id": l_source.id,
+					"location_dest_id": l_dest.id,
 					"name": product_tmpl.product_variant_id.name,
 					"product_uom": product_tmpl.uom_id.id
 				}
@@ -182,6 +194,10 @@ class productTemplate(models.Model):
 				# print(picking.move_lines)
 				picking.action_assign()
 				picking.button_validate()
+
+	def get_partner_location(self):
+		customerloc, supplierloc = self.env['stock.warehouse']._get_partner_locations()
+		return customerloc
 
 	def find_files_subdir(self, ext, search_path, xtype):
 		conn = pysftp.Connection(host=self.env.user.company_id.hostname,username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
