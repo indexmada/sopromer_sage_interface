@@ -33,7 +33,7 @@ class posSession(models.Model):
 			# SSH
 			ssh = paramiko.SSHClient()
 			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-			ssh.connect(hostname=HOSTNAME, username=USERNAME, password=PWD)
+			ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
 			sftp = ssh.open_sftp()
 			# END SSH
 
