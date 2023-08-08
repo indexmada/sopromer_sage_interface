@@ -5,7 +5,7 @@ from odoo import models, fields, api
 class Users(models.Model):
 	_inherit = "res.users"
 
-	pos_access_ids = fields.Many2one(comodel_name = "pos.config", string="Liste Points de Vente")
+	pos_access_ids = fields.Many2many(comodel_name = "pos.config", string="Liste Points de Vente")
 
 	@api.model
 	def create(self, vals):

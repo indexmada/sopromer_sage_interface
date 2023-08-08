@@ -33,7 +33,7 @@
       <field name="inherit_id" ref="point_of_sale.res_users_view_form"/>
       <field name="arch" type="xml">
         <field name="pos_security_pin" position="after">
-          <field name="pos_access_ids"/>
+          <field name="pos_access_ids" widget="many2many_tags"/>
         </field>
       </field>
     </record>
