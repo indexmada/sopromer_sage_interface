@@ -27,5 +27,52 @@
       </field>
     </record>
     
+    <record model="ir.ui.view" id="res_users_view_form_inherit">
+      <field name="name">res.users.inherit.sage</field>
+      <field name="model">res.users</field>
+      <field name="inherit_id" ref="point_of_sale.res_users_view_form"/>
+      <field name="arch" type="xml">
+        <field name="pos_security_pin" position="after">
+          <field name="pos_access_ids"/>
+        </field>
+      </field>
+    </record>
+
+    <!-- Records Rules -->
+    <!-- POS config -->
+    <record id="filter_pos_config_by_user" model="ir.rule">
+            <field name="name">SageInterface: Filtre par POS</field>
+            <field name="model_id" search="[('model','=','pos.config')]" model="ir.model"/>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="domain_force">[('id', 'in', user.pos_access_ids.ids)]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+     </record>
+
+    <!-- POS order -->
+    <record id="filter_pos_order_by_user" model="ir.rule">
+            <field name="name">SageInterface: Filtre par pos.order</field>
+            <field name="model_id" search="[('model','=','pos.order')]" model="ir.model"/>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="domain_force">[('config_id', 'in', user.pos_access_ids.ids)]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+     </record>
+
+    <!-- POS order -->
+    <record id="filter_pos_session_by_user" model="ir.rule">
+            <field name="name">SageInterface: Filtre par pos.session</field>
+            <field name="model_id" search="[('model','=','pos.session')]" model="ir.model"/>
+            <field name="groups" eval="[(4, ref('base.group_user'))]"/>
+            <field name="domain_force">[('config_id', 'in', user.pos_access_ids.ids)]</field>
+            <field name="perm_read" eval="True"/>
+            <field name="perm_create" eval="True"/>
+            <field name="perm_write" eval="True"/>
+            <field name="perm_unlink" eval="True"/>
+     </record>
   </data>
 </odoo>
