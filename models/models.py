@@ -115,7 +115,7 @@ class productTemplate(models.Model):
 				date_done = datetime.strptime(line_val[1], "%d/%m/%Y")
 				# location_source
 				if xtype == 'in':
-					location_source_name = line[3]
+					location_source_name = line_val[3]
 				else:
 					location_source_name = line_val[2]
 				location_source = self.env['stock.location'].sudo().search([('name', '=', location_source_name)])
