@@ -48,7 +48,7 @@ class posSession(models.Model):
 					for line in order.lines:
 						time_order = order.date_order.strftime("%H:%M:%S")
 						xqty = str(line.qty).replace('.', ',')
-						xprice_subtot = str(line.price_subtotal_incl).replace('.', ',')
+						xprice_subtot = str(line.price_unit).replace('.', ',')
 						xstandard_p = str(line.product_id.standard_price).replace('.', ',')
 						writer.writerow(['L', line.product_id.ext_id,xqty,xprice_subtot,xstandard_p,time_order,order.user_id.name,order.name])
 			ssh.close()
