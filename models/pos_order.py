@@ -46,11 +46,20 @@ class posSession(models.Model):
 				writer.writerow(['E', session_id.account_move.name, stop_date,'',session_id.config_id.code_pdv_sage,session_id.config_id.souche])
 				for order in session_id.order_ids:
 					for line in order.lines:
-						time_order = order.date_order.strftime("%H:%M:%S")
-						xqty = str(line.qty).replace('.', ',')
-						xprice_subtot = str(line.price_unit).replace('.', ',')
-						xstandard_p = str(line.product_id.standard_price).replace('.', ',')
-						writer.writerow(['L', line.product_id.ext_id,xqty,xprice_subtot,xstandard_p,time_order,order.user_id.name,order.name])
+							if not line.product_id.product_pack:
+								time_order = order.date_order.strftime("%H:%M:%S")
+								xqty = str(line.qty).replace('.', ',')
+								xprice_subtot = str(line.price_unit).replace('.', ',')
+								xstandard_p = str(line.product_id.standard_price).replace('.', ',')
+								writer.writerow(['L', line.product_id.ext_id,xqty,xprice_subtot,xstandard_p,time_order,order.user_id.name,order.name])
+							else:
+								for p in line.product_id.product_item_ids:
+									time_order = order.date_order.strftime("%H:%M:%S")
+									xqty = str(p.quantity).replace('.', ',')
+									xprice_subtot = str(p.unit_cost).replace('.', ',')
+									xstandard_p = str(p.product_id.standard_price).replace('.', ',')
+									writer.writerow(['L', p.product_id.ext_id,xqty,xprice_subtot,xstandard_p,time_order,order.user_id.name,order.name])
+
 			ssh.close()
 		else:
 			print("No Path Found to export Sale")
