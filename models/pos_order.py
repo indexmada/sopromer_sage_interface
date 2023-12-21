@@ -55,7 +55,7 @@ class posSession(models.Model):
 							else:
 								for p in line.product_id.product_item_ids:
 									time_order = order.date_order.strftime("%H:%M:%S")
-									xqty = str(p.quantity).replace('.', ',')
+									xqty = str(p.quantity * line.qty).replace('.', ',')
 									xprice_subtot = str(p.unit_cost).replace('.', ',')
 									xstandard_p = str(p.product_id.standard_price).replace('.', ',')
 									writer.writerow(['L', p.product_id.ext_id,xqty,xprice_subtot,xstandard_p,time_order,order.user_id.name,order.name])
