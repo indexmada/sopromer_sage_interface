@@ -271,7 +271,7 @@ class productTemplate(models.Model):
 			val = i.split(';')
 			external_id = val[0]
 			try:
-				public_price = val[1].replace('\r', '')
+				public_price = val[1].replace('\r', '').replace(',', '.')
 			except:
 				public_price = 0
 
