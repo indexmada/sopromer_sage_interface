@@ -276,7 +276,7 @@ class productTemplate(models.Model):
             destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
             self.move_file_copy(sftp, file, destination_directory)  # Déplace le fichier
             # Ajout de la suppression du fichier sur le serveur FTP après traitement
-            sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
+            #sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
 
             data_file = data_file_char.split('\n')
             self.write_public_price(data_file)
