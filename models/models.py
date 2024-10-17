@@ -50,7 +50,10 @@ class productTemplate(models.Model):
 				data_file_char = f.read()
 				data_file_char = data_file_char.decode('utf-8')
 
-				self.remove_file_subdir(file)
+				# self.remove_file_subdir(file)
+				# Use move_file_copy instead of remove_file_subdir
+				destination_directory = '/opt/odoo/sage_file'  # destination directory
+				self.move_file_copy(sftp, file, destination_directory)
 
 				data_file = data_file_char.split('\n')
 				self.write_stock(data_file)
@@ -79,7 +82,10 @@ class productTemplate(models.Model):
 				data_file_char = f.read()
 				data_file_char = data_file_char.decode('utf-8')
 
-				self.remove_file_subdir(file)
+				# self.remove_file_subdir(file)
+				# Use move_file_copy instead of remove_file_subdir
+				destination_directory = '/opt/odoo/sage_file'  # destination directory
+				self.move_file_copy(sftp, file, destination_directory)
 
 				data_file = data_file_char.split('\n')
 				self.write_stock(data_file, 'out')
@@ -235,8 +241,12 @@ class productTemplate(models.Model):
 	def remove_file_subdir(self, file):
 		print('removing file: ', file)
 		conn = pysftp.Connection(host=self.env.user.company_id.hostname,username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
-
 		conn.remove(file)
+
+	def move_file_copy(self, sftp, file, destination_directory):
+		print('copying file to: ', destination_directory)
+		destination_file = destination_directory + file.split('/')[-1]  # Get the file name from the path
+		sftp.get(file, destination_file)  # Copy the file to the destination directory
 
 	def update_price(self):
 		sage_path_tarif = self.env.user.company_id.sage_path_tarif
@@ -259,7 +269,11 @@ class productTemplate(models.Model):
 				data_file_char = f.read()
 				data_file_char = data_file_char.decode('utf-8')
 
-				self.remove_file_subdir(file)
+				# self.remove_file_subdir(file)
+				# Use move_file_copy instead of remove_file_subdir
+				destination_directory = '/opt/odoo/sage_file'  # destination directory
+				self.move_file_copy(sftp, file, destination_directory)
+
 				data_file = data_file_char.split('\n')
 				self.write_public_price(data_file)
 
