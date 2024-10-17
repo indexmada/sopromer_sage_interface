@@ -245,7 +245,7 @@ class productTemplate(models.Model):
 
 	def move_file_copy(self, sftp, file, destination_directory):
 		print('copying file to: ', destination_directory)
-		destination_file = destination_directory + file.split('/')[-1]  # Get the file name from the path
+		destination_file = os.path.join(destination_directory, file.split('/')[-1])  # Get the file name from the path
 		sftp.get(file, destination_file)  # Copy the file to the destination directory
 
 	def update_price(self):
