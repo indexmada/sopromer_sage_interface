@@ -158,8 +158,12 @@ class productTemplate(models.Model):
 					stock_picking_vals["location_dest_id"] = self.get_partner_location().id
 					l_dest = self.get_partner_location()
 
-
-				stock_picking_id = self.env['stock.picking'].sudo().create(stock_picking_vals)
+				# check if picking already exists
+				search_stock_picking_id = self.env['stock.picking'].search([('name', '=', stock_picking_vals['name'])])
+				if search_stock_picking_id:
+					stock_picking_id = search_stock_picking_id
+				else:
+					stock_picking_id = self.env['stock.picking'].sudo().create(stock_picking_vals)
 				stock_picking_ids |= stock_picking_id
 			elif stock_picking_id and len(line_val)>3:
 				print('**L')
