@@ -64,37 +64,37 @@ class productTemplate(models.Model):
 			ssh.close()
 
 	def sage_sopro_stock_out(self, files_tab):
-    sage_stock_out = self.env.user.company_id.sage_stock_out
+		sage_stock_out = self.env.user.company_id.sage_stock_out
 
-    print('#_*' * 30)
-    print('files_tab sortie: ', files_tab)
+		print('#_*' * 30)
+		print('files_tab sortie: ', files_tab)
 
-    if sage_stock_out and files_tab:
-        # SSH
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
-        sftp = ssh.open_sftp()
-        # END SSH
+		if sage_stock_out and files_tab:
+			# SSH
+			ssh = paramiko.SSHClient()
+			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+			ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
+			sftp = ssh.open_sftp()
+			# END SSH
 
-        for file in files_tab:
-            f = sftp.open(file, "r")
+			for file in files_tab:
+				f = sftp.open(file, "r")
 
-            data_file_char = f.read()
-            data_file_char = data_file_char.decode('utf-8')
+				data_file_char = f.read()
+				data_file_char = data_file_char.decode('utf-8')
 
-            # Déplacer le fichier vers le répertoire de destination et le supprimer du FTP
-            destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
-            self.move_file_copy(sftp, file, destination_directory)  # Déplace le fichier
-            # Ajout de la suppression du fichier sur le serveur FTP après traitement
-            sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
+				# Déplacer le fichier vers le répertoire de destination et le supprimer du FTP
+				destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
+				self.move_file_copy(sftp, file, destination_directory)  # Déplace le fichier
+				# Ajout de la suppression du fichier sur le serveur FTP après traitement
+				sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
 
-            data_file = data_file_char.split('\n')
-            self.write_stock(data_file, 'out')
+				data_file = data_file_char.split('\n')
+				self.write_stock(data_file, 'out')
 
-            f.close()
+				f.close()
 
-        ssh.close()
+			ssh.close()
 
 	def get_picking_type(self, xtype):
 		type_obj = self.env['stock.picking.type']
@@ -252,37 +252,37 @@ class productTemplate(models.Model):
 		self.remove_file_subdir(file)  # Delete the file from the FTP server after copying
 
 	def update_price(self):
-    sage_path_tarif = self.env.user.company_id.sage_path_tarif
-    print('*_' * 50)
-    if sage_path_tarif:
-        files_tab = self.find_files_subdir(".csv", sage_path_tarif, "T")
-        print('####')
-        print(files_tab)
-        # SSH
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
-        sftp = ssh.open_sftp()
-        # END SSH
+		sage_path_tarif = self.env.user.company_id.sage_path_tarif
+		print('*_' * 50)
+		if sage_path_tarif:
+			files_tab = self.find_files_subdir(".csv", sage_path_tarif, "T")
+			print('####')
+			print(files_tab)
+			# SSH
+			ssh = paramiko.SSHClient()
+			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+			ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
+			sftp = ssh.open_sftp()
+			# END SSH
 
-        for file in files_tab:
-            print('f')
-            f = sftp.open(file, "r")
+			for file in files_tab:
+				print('f')
+				f = sftp.open(file, "r")
 
-            data_file_char = f.read()
-            data_file_char = data_file_char.decode('utf-8')
+				data_file_char = f.read()
+				data_file_char = data_file_char.decode('utf-8')
 
-            # Déplacer le fichier vers le répertoire de destination et le supprimer du FTP
-            destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
-            self.move_file_copy(sftp, file, destination_directory)  # Déplace le fichier
-            # Ajout de la suppression du fichier sur le serveur FTP après traitement
-            #sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
+				# Déplacer le fichier vers le répertoire de destination et le supprimer du FTP
+				destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
+				self.move_file_copy(sftp, file, destination_directory)  # Déplace le fichier
+				# Ajout de la suppression du fichier sur le serveur FTP après traitement
+				#sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
 
-            data_file = data_file_char.split('\n')
-            self.write_public_price(data_file)
+				data_file = data_file_char.split('\n')
+				self.write_public_price(data_file)
 
-            f.close()
-        ssh.close()
+				f.close()
+			ssh.close()
 
 	def write_public_price(self, data):
 		for i in data:
