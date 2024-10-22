@@ -29,6 +29,7 @@ class productTemplate(models.Model):
 
 	def sage_sopro_update_stock(self):
 		sage_path_stock = self.env.user.company_id.sage_path_stock
+		sage_path_file_destination = self.env.user.company_id.sage_path_file_destinations
 
 		if sage_path_stock:
 			files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
@@ -52,7 +53,8 @@ class productTemplate(models.Model):
 
 				# self.remove_file_subdir(file)
 				# Use move_file_copy instead of remove_file_subdir
-				destination_directory = '/opt/odoo/sage_file'  # destination directory
+				# destination_directory = '/opt/odoo/sage_file'  # destination directory
+				destination_directory = sage_path_file_destination
 				self.move_file_copy(sftp, file, destination_directory)
 				# sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
 
@@ -65,6 +67,7 @@ class productTemplate(models.Model):
 
 	def sage_sopro_stock_out(self, files_tab):
 		sage_stock_out = self.env.user.company_id.sage_stock_out
+		sage_path_file_destination = self.env.user.company_id.sage_path_file_destinations
 
 		print('#_*' * 30)
 		print('files_tab sortie: ', files_tab)
@@ -84,7 +87,8 @@ class productTemplate(models.Model):
 				data_file_char = data_file_char.decode('utf-8')
 
 				# Déplacer le fichier vers le répertoire de destination et le supprimer du FTP
-				destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
+				# destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
+				destination_directory = sage_path_file_destination
 				self.move_file_copy(sftp, file, destination_directory)  # Déplace le fichier
 				# Ajout de la suppression du fichier sur le serveur FTP après traitement
 				# sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
@@ -258,6 +262,7 @@ class productTemplate(models.Model):
 
 	def update_price(self):
 		sage_path_tarif = self.env.user.company_id.sage_path_tarif
+		sage_path_file_destination = self.env.user.company_id.sage_path_file_destinations
 		print('*_' * 50)
 		if sage_path_tarif:
 			files_tab = self.find_files_subdir(".csv", sage_path_tarif, "T")
@@ -278,7 +283,8 @@ class productTemplate(models.Model):
 				data_file_char = data_file_char.decode('utf-8')
 
 				# Déplacer le fichier vers le répertoire de destination et le supprimer du FTP
-				destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
+				# destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
+				destination_directory = sage_path_file_destination
 				self.move_file_copy(sftp, file, destination_directory)  # Déplace le fichier
 				# Ajout de la suppression du fichier sur le serveur FTP après traitement
 				#sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement

@@ -27,6 +27,10 @@
                             <label for="sage_path_tarif"/>
                             <field name="sage_path_tarif"/>                            
                         </div>
+                        <div class="o_setting_right_pane">
+                            <label for="sage_path_file_destination"/>
+                            <field name="sage_path_file_destination"/>                            
+                        </div>
                     </div>
                     <div class="col-12 col-lg-6 o_setting_box" title="FTP Hôte">
                         <div class="o_setting_right_pane">
