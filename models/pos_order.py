@@ -18,17 +18,21 @@ class posSession(models.Model):
 	reported = fields.Boolean(string="Reported", default=False)
 	account_move = fields.Many2one(string="Journal Entry", comodel_name="account.move", compute="_compute_account_move")
 
-	def sage_sopro_pos_report(self):
+	def sage_sopro_pos_report(self, call_type):
 		date_today = date.today()
 		# session_ids = self.env['pos.session'].sudo().search([('reported', '=', False), ('state', '=', 'closed')])
+		file_path = ''
+		if call_type == 'button':
+			file_path = self.env.user.company_id.export_file_path
+		else:
+			# sage_sale_export = self.env.user.company_id.sage_sale_export
+			file_path = self.env.user.company_id.sage_sale_export
 		
-		sage_sale_export = self.env.user.company_id.sage_sale_export
-		if sage_sale_export:
-
+		if file_path:
 			date_str = datetime.now().strftime("%d-%m-%Y %H%M%S")
 
 			filename = "Facture"+str(date_str)+".csv"
-			file = sage_sale_export+'/'+str(self.config_id.code_pdv_sage)+'/'+filename
+			file = file_path+'/'+str(self.config_id.code_pdv_sage)+'/'+filename
 
 			# SSH
 			ssh = paramiko.SSHClient()
@@ -88,7 +92,7 @@ class posSession(models.Model):
 			if not session.config_id.cash_control:
 				session.action_pos_session_close()
 
-		self.sage_sopro_pos_report()
+		self.sage_sopro_pos_report('action')
 		return True
 
 class posConfig(models.Model):
