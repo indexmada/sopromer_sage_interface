@@ -18,11 +18,12 @@ class posSession(models.Model):
 	reported = fields.Boolean(string="Reported", default=False)
 	account_move = fields.Many2one(string="Journal Entry", comodel_name="account.move", compute="_compute_account_move")
 
-	def sage_sopro_pos_report(self, call_type):
+	def sage_sopro_pos_report(self):
 		date_today = date.today()
 		# session_ids = self.env['pos.session'].sudo().search([('reported', '=', False), ('state', '=', 'closed')])
 		file_path = ''
-		if call_type == 'button':
+		call_type = self._context.get('call_type', False)
+		if call_type and call_type == 'button':
 			file_path = self.env.user.company_id.export_file_path
 		else:
 			# sage_sale_export = self.env.user.company_id.sage_sale_export
@@ -92,7 +93,7 @@ class posSession(models.Model):
 			if not session.config_id.cash_control:
 				session.action_pos_session_close()
 
-		self.sage_sopro_pos_report('action')
+		self.sage_sopro_pos_report()
 		return True
 
 class posConfig(models.Model):
