@@ -6,6 +6,8 @@ from datetime import datetime,date
 import os
 import csv
 
+import logging
+
 import paramiko
 
 HOSTNAME = "ftp.cluster027.hosting.ovh.net"
@@ -34,6 +36,8 @@ class posSession(models.Model):
 
 			filename = "Facture"+str(date_str)+".csv"
 			file = file_path+'/'+str(self.config_id.code_pdv_sage)+'/'+filename
+
+			logging.error("___________________________________________ file_path : {} ___________________________________".format(file))
 
 			# SSH
 			ssh = paramiko.SSHClient()
