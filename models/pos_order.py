@@ -35,7 +35,10 @@ class posSession(models.Model):
 			date_str = datetime.now().strftime("%d-%m-%Y %H%M%S")
 
 			filename = "Facture"+str(date_str)+".csv"
-			file = file_path+'/'+str(self.config_id.code_pdv_sage)+'/'+filename
+			if call_type != 'button':
+				file = file_path+'/'+str(self.config_id.code_pdv_sage)+'/'+filename
+			else:
+				file = file_path+'/'+filename
 
 			logging.error("___________________________________________ file_path : {} ___________________________________".format(file))
 
