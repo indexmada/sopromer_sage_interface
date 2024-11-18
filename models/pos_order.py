@@ -6,6 +6,8 @@ from datetime import datetime,date
 import os
 import csv
 
+import logging
+
 import paramiko
 
 HOSTNAME = "ftp.cluster027.hosting.ovh.net"
@@ -21,14 +23,24 @@ class posSession(models.Model):
 	def sage_sopro_pos_report(self):
 		date_today = date.today()
 		# session_ids = self.env['pos.session'].sudo().search([('reported', '=', False), ('state', '=', 'closed')])
+		file_path = ''
+		call_type = self._context.get('call_type', False)
+		if call_type and call_type == 'button':
+			file_path = self.env.user.company_id.export_file_path
+		else:
+			# sage_sale_export = self.env.user.company_id.sage_sale_export
+			file_path = self.env.user.company_id.sage_sale_export
 		
-		sage_sale_export = self.env.user.company_id.sage_sale_export
-		if sage_sale_export:
-
+		if file_path:
 			date_str = datetime.now().strftime("%d-%m-%Y %H%M%S")
 
 			filename = "Facture"+str(date_str)+".csv"
-			file = sage_sale_export+'/'+str(self.config_id.code_pdv_sage)+'/'+filename
+			if call_type != 'button':
+				file = file_path+'/'+str(self.config_id.code_pdv_sage)+'/'+filename
+			else:
+				file = file_path+'/'+filename
+
+			logging.error("___________________________________________ file_path : {} ___________________________________".format(file))
 
 			# SSH
 			ssh = paramiko.SSHClient()
