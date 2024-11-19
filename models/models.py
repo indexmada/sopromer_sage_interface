@@ -63,38 +63,68 @@ class productTemplate(models.Model):
 				
 			ssh.close()
 
-	def sage_sopro_stock_out(self, files_tab):
-		sage_stock_out = self.env.user.company_id.sage_stock_out
+def sage_sopro_stock_out(self, files_tab):
+    sage_stock_out = self.env.user.company_id.sage_stock_out
 
-		print('#_*' * 30)
-		print('files_tab sortie: ', files_tab)
+    print('#_*' * 30)
+    print('files_tab sortie: ', files_tab)
 
-		if sage_stock_out and files_tab:
-			# SSH
-			ssh = paramiko.SSHClient()
-			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-			ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
-			sftp = ssh.open_sftp()
-			# END SSH
+    if sage_stock_out and files_tab:
+        # SSH
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            ssh.connect(
+                hostname=self.env.user.company_id.hostname,
+                username=self.env.user.company_id.hostusername,
+                password=self.env.user.company_id.hostmdp
+            )
+            sftp = ssh.open_sftp()
 
-			for file in files_tab:
-				f = sftp.open(file, "r")
+            for file in files_tab:
+                try:
+                    print(f"Processing file: {file}")
+                    # Lecture du fichier
+                    f = sftp.open(file, "r")
+                    data_file_char = f.read()
+                    data_file_char = data_file_char.decode('utf-8')
+                    f.close()
 
-				data_file_char = f.read()
-				data_file_char = data_file_char.decode('utf-8')
+                    # Déplacement sécurisé vers le répertoire local
+                    destination_directory = '/opt/odoo/sage_file'
+                    try:
+                        self.move_file_copy(sftp, file, destination_directory)
+                    except Exception as e:
+                        print(f"Error moving file {file}: {e}")
+                        # Continuer même si le fichier ne peut pas être déplacé
+                        continue
 
-				# Déplacer le fichier vers le répertoire de destination et le supprimer du FTP
-				destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
-				self.move_file_copy(sftp, file, destination_directory)  # Déplace le fichier
-				# Ajout de la suppression du fichier sur le serveur FTP après traitement
-				# sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
+                    # Traitement des données du fichier
+                    data_file = data_file_char.split('\n')
+                    try:
+                        self.write_stock(data_file, 'out')
+                        print(f"File processed successfully: {file}")
+                    except Exception as e:
+                        print(f"Error writing stock for file {file}: {e}")
+                        continue
 
-				data_file = data_file_char.split('\n')
-				self.write_stock(data_file, 'out')
+                except Exception as e:
+                    print(f"Error processing file {file}: {e}")
+                    # Logguer l'erreur et continuer avec le prochain fichier
+                    continue
 
-				f.close()
+        except Exception as ssh_error:
+            print(f"Error connecting to SFTP: {ssh_error}")
 
-			ssh.close()
+        finally:
+            # Fermeture sécurisée des connexions
+            try:
+                if 'sftp' in locals():
+                    sftp.close()
+                ssh.close()
+            except Exception as close_error:
+                print(f"Error closing SSH/SFTP connections: {close_error}")
+
 
 	def get_picking_type(self, xtype):
 		type_obj = self.env['stock.picking.type']
