@@ -5,9 +5,14 @@ from datetime import datetime
 import os
 from odoo.exceptions import UserError
 
+<<<<<<< HEAD
 #import pysftp
 
 #import paramiko
+=======
+import pysftp
+import paramiko
+>>>>>>> 576e034b9eb92f056c1254f95cb556ebf0f940fd
 
 # HOSTNAME = "ftp.cluster027.hosting.ovh.net"
 # USERNAME = "sopemoa"
@@ -17,17 +22,21 @@ FILE_NAME_TARIF = "Tarif"
 FILE_NAME_ENTREE = "EntrerStoc"
 FILE_NAME_SORTIE = "SortieStoc"
 
+
 class productTemplate(models.Model):
-	_inherit="product.template"
+    _inherit = "product.template"
 
-	new_dc = fields.Char("New Dc")
-	ext_id = fields.Char(string="ext id", compute="_compute_ext_id")
+    new_dc = fields.Char("New Dc")
+    ext_id = fields.Char(string="ext id", compute="_compute_ext_id")
 
-	def _compute_ext_id(self):
-		for rec in self:
-			val = self.env['ir.model.data'].sudo().search([('model', '=', 'product.template'), ('res_id', '=', rec.id)], limit=1)
-			rec.ext_id = val.name or None
+    def _compute_ext_id(self):
+        for rec in self:
+            val = self.env['ir.model.data'].sudo().search(
+                [('model', '=', 'product.template'), ('res_id', '=', rec.id)], limit=1
+            )
+            rec.ext_id = val.name or None
 
+<<<<<<< HEAD
 	def sage_sopro_update_stock(self):
         sage_path_stock = self.env.user.company_id.sage_path_stock
 
@@ -125,243 +134,397 @@ class productTemplate(models.Model):
         except Exception as e:
             print(f"Erreur lors du déplacement du fichier {file} vers {destination_directory} : {e}")
             raise UserError(f"Erreur lors du déplacement du fichier {file}: {e}")
+=======
+def sage_sopro_update_stock(self):
+    sage_path_stock = self.env.user.company_id.sage_path_stock
 
-	def sage_sopro_stock_out(self, files_tab):
-		sage_stock_out = self.env.user.company_id.sage_stock_out
+    if sage_path_stock:
+        files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
+        entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE) >= 0, files_tab))
+        sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE) >= 0, files_tab))
 
-		print('#_*' * 30)
-		print('files_tab sortie: ', files_tab)
+        self.sage_sopro_stock_out(sortie_files_tab)
 
-		if sage_stock_out and files_tab:
-			# SSH
-			ssh = paramiko.SSHClient()
-			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-			ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
-			sftp = ssh.open_sftp()
-			# END SSH
+        # Connexion SSH pour récupérer les fichiers
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(
+            hostname=self.env.user.company_id.hostname,
+            username=self.env.user.company_id.hostusername,
+            password=self.env.user.company_id.hostmdp
+        )
+        sftp = ssh.open_sftp()
 
-			for file in files_tab:
-				f = sftp.open(file, "r")
+        # Traitement séquentiel des fichiers
+        for file in entree_files_tab:
+            # Vérifier si le fichier précédent a été traité avant de traiter ce fichier
+            if self.is_previous_file_processed():
+                try:
+                    f = sftp.open(file, "r")
+                    data_file_char = f.read().decode('utf-8')
 
-				data_file_char = f.read()
-				data_file_char = data_file_char.decode('utf-8')
+                    # Nouvel emplacement sur le FTP pour sauvegarde
+                    destination_directory = '/FTP-SCD/Sortie/output_stock'
+                    self.move_file_copy_within_ftp(sftp, file, destination_directory)
 
-				# Déplacer le fichier vers le répertoire de destination et le supprimer du FTP
-				destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
-				self.move_file_copy(sftp, file, destination_directory)  # Déplace le fichier
-				# Ajout de la suppression du fichier sur le serveur FTP après traitement
-				# sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
+                    data_file = data_file_char.split('\n')
+                    self.write_stock(data_file)  # Traitement du fichier
 
-				data_file = data_file_char.split('\n')
-				self.write_stock(data_file, 'out')
+                    # Validation des pickings après traitement
+                    self.validate_picking_references()
+>>>>>>> 576e034b9eb92f056c1254f95cb556ebf0f940fd
 
-				f.close()
+                    f.close()
 
-			ssh.close()
+                    # Mettre à jour le statut du fichier après traitement
+                    self.update_file_status(file)
 
-	def get_picking_type(self, xtype):
-		type_obj = self.env['stock.picking.type']
-		company_id = self.env.user.company_id.id
+                except Exception as e:
+                    self.env.cr.rollback()
+                    self.env['mail.message'].create({
+                        'body': f"Erreur lors du traitement du fichier {file}: {str(e)}",
+                        'subject': "Erreur Sage Stock Update",
+                        'type': 'notification',
+                        'author_id': self.env.user.partner_id.id,
+                    })
+            else:
+                # Si le fichier précédent n'est pas encore traité, le fichier actuel est mis en attente
+                self.env['mail.message'].create({
+                    'body': f"Le fichier précédent n'est pas encore traité, fichier {file} en attente.",
+                    'subject': "Fichier en attente",
+                    'type': 'notification',
+                    'author_id': self.env.user.partner_id.id,
+                })
+                break  # Quitter la boucle et attendre la prochaine exécution du cron
 
-		if xtype == 'in':
-			ptype = 'incoming'
-		else:
-			ptype = 'outgoing'
+        ssh.close()
 
-		types = type_obj.search([('code', '=', ptype), ('warehouse_id.company_id', '=', company_id)])
-		if not types:
-			types = type_obj.search([('code', '=', ptype), ('warehouse_id', '=', False)])
-		val = types[:1]
-		return val
-
-	def write_stock(self, data, xtype='in'):
-		stock_picking_id = False
-		stock_picking_ids = self.env['stock.picking'].sudo()
-		print('----------',stock_picking_ids)
-
-		for i in data:
-			line_val = i.split(';')
-			if line_val[0] == 'E':
-				print('***E')
-				date_done = datetime.strptime(line_val[1], "%d/%m/%Y")
-				# location_source
-				if xtype == 'in':
-					location_source_name = line_val[3]
-				else:
-					location_source_name = line_val[2]
-				location_source = self.env['stock.location'].sudo().search([('name', '=', location_source_name)])
-				if not location_source:
-					location_source = self.env['stock.location'].sudo().create({
-						"name": location_source_name
-						})
-
-				# Depot destination
-				# location_dest_name = line_val[3]
-				# location_dest = self.env['stock.location'].sudo().search([('name', '=', location_dest_name)])
-				# if not location_dest:
-				# 	location_dest = self.env['stock.location'].sudo().create({
-				# 		"name": location_dest_name
-				# 		})
-
-				# stock_picking
-				stock_picking_vals = {
-					"date_done": date_done,
-					"name": line_val[4],
-					"picking_type_id": self.get_picking_type(xtype).id
-				}
-
-				if xtype == 'in':
-					stock_picking_vals["picking_type_code"] = 'incoming'
-					stock_picking_vals["location_dest_id"] = location_source.id
-					l_dest = location_source
-					stock_picking_vals["location_id"] = self.env['stock.warehouse'].search([('company_id', '=', self.env.user.company_id.id)], limit=1).lot_stock_id.id
-					l_source = self.env['stock.warehouse'].search([('company_id', '=', self.env.user.company_id.id)], limit=1).lot_stock_id
-				else:
-					stock_picking_vals["picking_type_code"] = 'outgoing'
-					stock_picking_vals["location_id"] = location_source.id
-					l_source = location_source
-					stock_picking_vals["location_dest_id"] = self.get_partner_location().id
-					l_dest = self.get_partner_location()
+    return True
 
 
-				# check if picking already exists
-				search_stock_picking_id = self.env['stock.picking'].search([('name', '=', stock_picking_vals['name'])])
-				if search_stock_picking_id:
-					stock_picking_id = search_stock_picking_id
-				else:
-					stock_picking_id = self.env['stock.picking'].sudo().create(stock_picking_vals)
-				stock_picking_ids |= stock_picking_id
-			elif stock_picking_id and len(line_val)>3:
-				print('**L')
-				ref_prod = line_val[1]
-				prod_name = line_val[2]
-				qty = line_val[3]
-				price = line_val[4]
-				product_tmpl = self.env['product.template'].sudo().search([]).filtered(lambda p: p.ext_id == ref_prod)
-				if not product_tmpl:
-					product_tmpl = self.env['product.template'].sudo().create({
-						"name": prod_name,
-						# "default_code": ref_prod,
-						"standard_price": float(price.replace(',','.')),
-						"type": 'product',
-						"new_dc": ref_prod,
-						"available_in_pos": True
-						})
+def is_previous_file_processed(self):
+    # Vérifier que tous les pickings précédemment créés ont une référence valide
+    last_picking = self.env['stock.picking'].search([('state', '=', 'done')], order='create_date desc', limit=1)
 
-					self.env['ir.model.data'].sudo().create({
-						"name": ref_prod,
-						"model": "product.template",
-						"res_id": product_tmpl.id
-						})
+    if last_picking and last_picking.name:
+        # Vérifier si la référence du picking est bien définie
+        return True
+    return False
 
-				stock_move_vals = {
-					"product_id": product_tmpl.product_variant_id.id,
-					"product_uom_qty": float(qty.replace(',','.')),
-					"quantity_done": float(qty.replace(',','.')),
-					"picking_id": stock_picking_id.id,
-					"location_id": l_source.id,
-					"location_dest_id": l_dest.id,
-					"name": product_tmpl.product_variant_id.name,
-					"product_uom": product_tmpl.uom_id.id
-				}
-				stock_move = self.env['stock.move'].sudo().create(stock_move_vals)
 
-		if stock_picking_ids and len(stock_picking_ids)>0:
-			for picking in stock_picking_ids:
-				picking.action_confirm()
-				# print('*'*30)
-				# print(picking.move_lines)
-				picking.action_assign()
-				picking.button_validate()
+def validate_picking_references(self):
+    # Vérification de la validité de la référence de chaque picking importé
+    pickings = self.env['stock.picking'].search([('state', '=', 'done')])
 
-	def get_partner_location(self):
-		customerloc, supplierloc = self.env['stock.warehouse']._get_partner_locations()
-		return customerloc
+    for picking in pickings:
+        if not picking.name:
+            raise UserError(f"Le picking {picking.id} n'a pas de référence assignée.")
 
-	def find_files_subdir(self, ext, search_path, xtype):
-		conn = pysftp.Connection(host=self.env.user.company_id.hostname,username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
 
-		result = []
-		dir_tab = []
-		with conn.cd(search_path):
-			content = conn.listdir()
-			for i in content:
-				if i.find('.') <0:
-					dir_tab.append(i)
+    def move_file_copy_within_ftp(self, sftp, file, destination_directory):
+        """
+        Déplace un fichier sur le FTP vers un répertoire de destination spécifié.
+        """
+        try:
+            # Crée le répertoire destination s'il n'existe pas
+            try:
+                sftp.stat(destination_directory)
+            except FileNotFoundError:
+                sftp.mkdir(destination_directory)
 
-		print(dir_tab)
-		for dirname in dir_tab:
-			dir_path = search_path+'/'+dirname
-			print(dirname)
-			with conn.cd(dir_path):
-				files = conn.listdir()
-				for file in files:
-					if xtype in ['E', 'S']:
-						if (file[-4:]==ext and (file.find(FILE_NAME_ENTREE) >= 0 or file.find(FILE_NAME_SORTIE) >= 0)):
-							print('file (y): ',file)
-							fn = dir_path+'/'+file
-							result.append(fn)
-					else:
-						if (file[-4:]==ext and file.find(FILE_NAME_TARIF) >= 0):
-							print('file (y): ',file)
-							fn = dir_path+'/'+file
-							result.append(fn)
-		return result
+            # Générer le chemin complet vers le fichier de destination
+            destination_file = f"{destination_directory}/{os.path.basename(file)}"
 
-	def remove_file_subdir(self, file):
-		print('removing file: ', file)
-		conn = pysftp.Connection(host=self.env.user.company_id.hostname,username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
-		conn.remove(file)
+            # Déplacer le fichier sur le FTP
+            sftp.rename(file, destination_file)
+            print(f"Fichier déplacé avec succès vers : {destination_file}")
+        except Exception as e:
+            print(f"Erreur lors du déplacement du fichier {file} vers {destination_directory} : {e}")
 
-	def move_file_copy(self, sftp, file, destination_directory):
-		print('copying file to: ', destination_directory)
-		destination_file = os.path.join(destination_directory, file.split('/')[-1])  # Get the file name from the path
-		sftp.get(file, destination_file)  # Copy the file to the destination directory
-		self.remove_file_subdir(file)  # Delete the file from the FTP server after copying
+    def sage_sopro_stock_out(self, files_tab):
+        sage_stock_out = self.env.user.company_id.sage_stock_out
 
-	def update_price(self):
-		sage_path_tarif = self.env.user.company_id.sage_path_tarif
-		print('*_' * 50)
-		if sage_path_tarif:
-			files_tab = self.find_files_subdir(".csv", sage_path_tarif, "T")
-			print('####')
-			print(files_tab)
-			# SSH
-			ssh = paramiko.SSHClient()
-			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-			ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
-			sftp = ssh.open_sftp()
-			# END SSH
+        if sage_stock_out and files_tab:
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(
+                hostname=self.env.user.company_id.hostname,
+                username=self.env.user.company_id.hostusername,
+                password=self.env.user.company_id.hostmdp
+            )
+            sftp = ssh.open_sftp()
 
-			for file in files_tab:
-				print('f')
-				f = sftp.open(file, "r")
+            for file in files_tab:
+                try:
+                    f = sftp.open(file, "r")
+                    data_file_char = f.read().decode('utf-8')
 
-				data_file_char = f.read()
-				data_file_char = data_file_char.decode('utf-8')
+                    destination_directory = '/opt/odoo/sage_file'
+                    self.move_file_copy_within_ftp(sftp, file, destination_directory)
 
-				# Déplacer le fichier vers le répertoire de destination et le supprimer du FTP
-				destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
-				self.move_file_copy(sftp, file, destination_directory)  # Déplace le fichier
-				# Ajout de la suppression du fichier sur le serveur FTP après traitement
-				#sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
+                    data_file = data_file_char.split('\n')
+                    self.write_stock(data_file, 'out')
 
-				data_file = data_file_char.split('\n')
-				self.write_public_price(data_file)
+                    f.close()
+                except Exception as e:
+                    self.env.cr.rollback()
+                    self.env['mail.message'].create({
+                        'body': f"Erreur lors du traitement du fichier {file}: {str(e)}",
+                        'subject': "Erreur Sage Stock Out",
+                        'type': 'notification',
+                        'author_id': self.env.user.partner_id.id,
+                    })
+            ssh.close()
 
-				f.close()
-			ssh.close()
+def get_picking_type(self, xtype):
+    type_obj = self.env['stock.picking.type']
+    company_id = self.env.user.company_id.id
+    ptype = 'incoming' if xtype == 'in' else 'outgoing'
 
-	def write_public_price(self, data):
-		for i in data:
-			val = i.split(';')
-			external_id = val[0]
-			try:
-				public_price = val[1].replace('\r', '').replace(',', '.')
-			except:
-				public_price = 0
+    types = type_obj.search([('code', '=', ptype), ('warehouse_id.company_id', '=', company_id)])
+    if not types:
+        types = type_obj.search([('code', '=', ptype), ('warehouse_id', '=', False)])
+    return types[:1]
 
-			product_tmpl_ids = self.env['product.template'].sudo().search([]).filtered(lambda prod: prod.ext_id == external_id)
-			print(val, '___  ___', product_tmpl_ids)
-			for prod in product_tmpl_ids:
-				prod.write({'list_price': float(public_price)})
+def write_stock(self, data, xtype='in'):
+    stock_picking_ids = self.env['stock.picking'].sudo()
+
+    for i in data:
+        line_val = i.split(';')
+        if len(line_val) < 5:  # Vérification du format minimal requis
+            continue
+
+        # Processus pour créer ou rechercher un picking
+        if line_val[0] == 'E':
+            try:
+                date_done = datetime.strptime(line_val[1], "%d/%m/%Y")
+                location_source_name = line_val[3] if xtype == 'in' else line_val[2]
+                location_source = self.env['stock.location'].sudo().search([('name', '=', location_source_name)], limit=1)
+                if not location_source:
+                    location_source = self.env['stock.location'].sudo().create({"name": location_source_name})
+
+                stock_picking_vals = {
+                    "date_done": date_done,
+                    "name": line_val[4],
+                    "picking_type_id": self.get_picking_type(xtype).id,
+                }
+
+                if xtype == 'in':
+                    stock_picking_vals.update({
+                        "picking_type_code": 'incoming',
+                        "location_dest_id": location_source.id,
+                        "location_id": self.env['stock.warehouse'].search(
+                            [('company_id', '=', self.env.user.company_id.id)], limit=1
+                        ).lot_stock_id.id
+                    })
+                else:
+                    stock_picking_vals.update({
+                        "picking_type_code": 'outgoing',
+                        "location_id": location_source.id,
+                        "location_dest_id": self.get_partner_location().id
+                    })
+
+                search_stock_picking_id = self.env['stock.picking'].search([('name', '=', stock_picking_vals['name'])], limit=1)
+                stock_picking_id = search_stock_picking_id or self.env['stock.picking'].sudo().create(stock_picking_vals)
+                stock_picking_ids |= stock_picking_id
+
+            except Exception as e:
+                self.env.cr.rollback()
+                self.env['mail.message'].create({
+                    'body': f"Erreur lors de la création du picking : {str(e)}",
+                    'subject': "Erreur Picking Stock",
+                    'type': 'notification',
+                    'author_id': self.env.user.partner_id.id,
+                })
+                continue
+
+        # Processus pour gérer les lignes de mouvement de stock
+        elif stock_picking_id and len(line_val) >= 5:
+            try:
+                ref_prod, prod_name, qty, price = line_val[1:5]
+                qty = float(qty.replace(',', '.'))
+                price = float(price.replace(',', '.'))
+
+                product_tmpl = self.env['product.template'].sudo().search([('ext_id', '=', ref_prod)], limit=1)
+
+                if not product_tmpl:
+                    product_tmpl = self.env['product.template'].sudo().create({
+                        "name": prod_name,
+                        "standard_price": price,
+                        "type": 'product',
+                        "new_dc": ref_prod,
+                        "available_in_pos": True
+                    })
+                    self.env['ir.model.data'].sudo().create({
+                        "name": ref_prod,
+                        "model": "product.template",
+                        "res_id": product_tmpl.id
+                    })
+
+                stock_move_vals = {
+                    "product_id": product_tmpl.product_variant_id.id,
+                    "product_uom_qty": qty,
+                    "quantity_done": qty,
+                    "picking_id": stock_picking_id.id,
+                    "location_id": stock_picking_id.location_id.id,
+                    "location_dest_id": stock_picking_id.location_dest_id.id,
+                    "name": product_tmpl.product_variant_id.name,
+                    "product_uom": product_tmpl.uom_id.id
+                }
+                self.env['stock.move'].sudo().create(stock_move_vals)
+
+            except Exception as e:
+                self.env.cr.rollback()
+                self.env['mail.message'].create({
+                    'body': f"Erreur lors de la création de la ligne de stock : {str(e)}",
+                    'subject': "Erreur Stock Move",
+                    'type': 'notification',
+                    'author_id': self.env.user.partner_id.id,
+                })
+                continue
+
+    # Validation des pickings
+    for picking in stock_picking_ids:
+        try:
+            picking.action_confirm()
+            picking.action_assign()
+            picking.button_validate()
+        except Exception as e:
+            self.env.cr.rollback()
+            self.env['mail.message'].create({
+                'body': f"Erreur lors de la validation du picking {picking.name} : {str(e)}",
+                'subject': "Erreur Validation Picking",
+                'type': 'notification',
+                'author_id': self.env.user.partner_id.id,
+            })
+
+
+def get_partner_location(self):
+    customerloc, supplierloc = self.env['stock.warehouse']._get_partner_locations()
+    return customerloc
+
+def find_files_subdir(self, ext, search_path, xtype):
+    """
+    Recherche les fichiers d'une extension donnée dans les sous-répertoires d'un chemin spécifié.
+    """
+    conn = pysftp.Connection(
+        host=self.env.user.company_id.hostname,
+        username=self.env.user.company_id.hostusername,
+        password=self.env.user.company_id.hostmdp
+    )
+    result = []
+    dir_tab = []
+
+    with conn.cd(search_path):
+        content = conn.listdir()
+        for i in content:
+            if '.' not in i:  # Exclure les fichiers, garder seulement les dossiers
+                dir_tab.append(i)
+
+    for dirname in dir_tab:
+        dir_path = os.path.join(search_path, dirname)
+        with conn.cd(dir_path):
+            files = conn.listdir()
+            for file in files:
+                if file.endswith(ext):
+                    if xtype in ['E', 'S'] and (FILE_NAME_ENTREE in file or FILE_NAME_SORTIE in file):
+                        result.append(os.path.join(dir_path, file))
+                    elif xtype == 'T' and FILE_NAME_TARIF in file:
+                        result.append(os.path.join(dir_path, file))
+
+    conn.close()
+    return result
+
+def remove_file_subdir(self, file):
+    """
+    Supprime un fichier du serveur FTP.
+    """
+    conn = pysftp.Connection(
+        host=self.env.user.company_id.hostname,
+        username=self.env.user.company_id.hostusername,
+        password=self.env.user.company_id.hostmdp
+    )
+    try:
+        conn.remove(file)
+    except Exception as e:
+        print(f"Erreur lors de la suppression du fichier {file} : {e}")
+    finally:
+        conn.close()
+
+def move_file_copy(self, sftp, file, destination_directory):
+    """
+    Copie un fichier depuis le FTP vers un répertoire local, puis le supprime du FTP.
+    """
+    try:
+        # Créer le dossier destination s'il n'existe pas
+        os.makedirs(destination_directory, exist_ok=True)
+
+        destination_file = os.path.join(destination_directory, os.path.basename(file))
+        sftp.get(file, destination_file)  # Télécharger le fichier
+        self.remove_file_subdir(file)  # Supprimer le fichier source du FTP
+
+    except Exception as e:
+        print(f"Erreur lors du déplacement du fichier {file} : {e}")
+
+def update_price(self):
+    """
+    Met à jour les prix publics des produits à partir des fichiers CSV dans le répertoire Sage.
+    """
+    sage_path_tarif = self.env.user.company_id.sage_path_tarif
+
+    if sage_path_tarif:
+        files_tab = self.find_files_subdir(".csv", sage_path_tarif, "T")
+
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        ssh.connect(
+            hostname=self.env.user.company_id.hostname,
+            username=self.env.user.company_id.hostusername,
+            password=self.env.user.company_id.hostmdp
+        )
+        sftp = ssh.open_sftp()
+
+        for file in files_tab:
+            try:
+                f = sftp.open(file, "r")
+                data_file_char = f.read().decode('utf-8')
+                f.close()
+
+                # Déplacement du fichier pour archivage
+                destination_directory = '/opt/odoo/sage_file'
+                self.move_file_copy(sftp, file, destination_directory)
+
+                # Mise à jour des prix publics
+                data_file = data_file_char.split('\n')
+                self.write_public_price(data_file)
+
+            except Exception as e:
+                print(f"Erreur lors du traitement du fichier {file} : {e}")
+                continue
+
+        ssh.close()
+
+def write_public_price(self, data):
+    """
+    Écrit le prix public des produits en fonction des données du fichier.
+    """
+    for i in data:
+        val = i.split(';')
+        if len(val) < 2:  # Vérifie si les données sont complètes
+            continue
+
+        external_id = val[0]
+        try:
+            public_price = float(val[1].replace('\r', '').replace(',', '.'))
+        except (IndexError, ValueError):
+            public_price = 0.0
+
+        # Recherche des produits correspondant à l'ID externe
+        product_tmpl_ids = self.env['product.template'].sudo().search([('ext_id', '=', external_id)])
+
+        for product_tmpl in product_tmpl_ids:
+            try:
+                product_tmpl.sudo().write({"list_price": public_price})
+            except Exception as e:
+                print(f"Erreur lors de la mise à jour du prix du produit {product_tmpl.name} : {e}")
+
