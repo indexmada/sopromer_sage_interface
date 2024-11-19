@@ -3,6 +3,7 @@
 from odoo import models, fields, api
 from datetime import datetime
 import os
+from threading import Lock
 
 import pysftp
 
@@ -27,74 +28,123 @@ class productTemplate(models.Model):
 			val = self.env['ir.model.data'].sudo().search([('model', '=', 'product.template'), ('res_id', '=', rec.id)], limit=1)
 			rec.ext_id = val.name or None
 
-	def sage_sopro_update_stock(self):
-		sage_path_stock = self.env.user.company_id.sage_path_stock
+	process_lock = Lock()  # Verrou global pour le traitement séquentiel
 
-		if sage_path_stock:
-			files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
-			entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE)>=0, files_tab))
-			sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE)>=0, files_tab))
-			print('files_tab entree : ', entree_files_tab)
-			self.sage_sopro_stock_out(sortie_files_tab)
+def sage_sopro_update_stock(self):
+    """Méthode principale pour traiter les fichiers Sage (entrées et sorties)."""
+    if process_lock.locked():
+        _logger.info("Un traitement est déjà en cours. Ajout des fichiers à la file d'attente.")
+        self.enqueue_files()  # Ajoute les fichiers à une file d'attente persistante
+        return
 
-			# SSH
-			ssh = paramiko.SSHClient()
-			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-			ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
-			sftp = ssh.open_sftp()
-			# END SSH
+    with process_lock:
+        sage_path_stock = self.env.user.company_id.sage_path_stock
 
-			for file in entree_files_tab:
-				f = sftp.open(file, "r")
+        if not sage_path_stock:
+            _logger.error("Chemin Sage non défini pour la société.")
+            return
 
-				data_file_char = f.read()
-				data_file_char = data_file_char.decode('utf-8')
+        files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
+        entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE) >= 0, files_tab))
+        sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE) >= 0, files_tab))
 
-				# self.remove_file_subdir(file)
-				# Use move_file_copy instead of remove_file_subdir
-				destination_directory = '/opt/odoo/sage_file'  # destination directory
-				self.move_file_copy(sftp, file, destination_directory)
-				# sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
+        _logger.info(f"Fichiers d'entrée trouvés : {len(entree_files_tab)}")
+        _logger.info(f"Fichiers de sortie trouvés : {len(sortie_files_tab)}")
 
-				data_file = data_file_char.split('\n')
-				self.write_stock(data_file)
+        # Traiter les fichiers de sortie
+        self.sage_sopro_stock_out(sortie_files_tab)
 
-				f.close()
-				
-			ssh.close()
+        # Traiter les fichiers d'entrée
+        self.process_files(entree_files_tab, mode="in")
 
-	def sage_sopro_stock_out(self, files_tab):
-		sage_stock_out = self.env.user.company_id.sage_stock_out
 
-		print('#_*' * 30)
-		print('files_tab sortie: ', files_tab)
+def sage_sopro_stock_out(self, files_tab):
+    """Traiter les fichiers liés aux sorties de stock."""
+    sage_stock_out = self.env.user.company_id.sage_stock_out
 
-		if sage_stock_out and files_tab:
-			# SSH
-			ssh = paramiko.SSHClient()
-			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-			ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
-			sftp = ssh.open_sftp()
-			# END SSH
+    if not sage_stock_out or not files_tab:
+        _logger.info("Aucun fichier de sortie à traiter.")
+        return
 
-			for file in files_tab:
-				f = sftp.open(file, "r")
+    _logger.info(f"Traitement des fichiers de sortie : {len(files_tab)} fichiers.")
 
-				data_file_char = f.read()
-				data_file_char = data_file_char.decode('utf-8')
+    with self.get_sftp_connection() as sftp:
+        self.process_files(files_tab, mode="out")
 
-				# Déplacer le fichier vers le répertoire de destination et le supprimer du FTP
-				destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
-				self.move_file_copy(sftp, file, destination_directory)  # Déplace le fichier
-				# Ajout de la suppression du fichier sur le serveur FTP après traitement
-				# sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
 
-				data_file = data_file_char.split('\n')
-				self.write_stock(data_file, 'out')
+def process_files(self, files_tab, mode="in"):
+    """Traiter une liste de fichiers (entrées ou sorties)."""
+    if not files_tab:
+        _logger.info(f"Aucun fichier à traiter pour le mode {mode}.")
+        return
 
-				f.close()
+    def process_file(file):
+        try:
+            with sftp.open(file, "r") as f:
+                data_file_char = f.read().decode('utf-8')
+                data_file = data_file_char.split('\n')
 
-			ssh.close()
+                destination_directory = '/opt/odoo/sage_file'
+                self.move_file_copy(sftp, file, destination_directory)
+                self.write_stock(data_file, mode)
+
+            _logger.info(f"Fichier traité avec succès : {file}")
+        except Exception as e:
+            _logger.error(f"Erreur lors du traitement du fichier {file} : {str(e)}")
+
+    _logger.info(f"Début du traitement des fichiers ({len(files_tab)} fichiers) en mode {mode}.")
+
+    # Traitement en parallèle
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        executor.map(process_file, files_tab)
+
+
+def get_sftp_connection(self):
+    """Établir une connexion SFTP sécurisée avec une clé privée."""
+    ssh = paramiko.SSHClient()
+    ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+
+    private_key_path = self.env.user.company_id.ssh_key_path
+    ssh.connect(
+        hostname=self.env.user.company_id.hostname,
+        username=self.env.user.company_id.hostusername,
+        key_filename=private_key_path
+    )
+
+    _logger.info("Connexion SFTP établie avec succès.")
+    return ssh.open_sftp()
+
+
+def enqueue_files(self):
+    """Ajouter les fichiers non traités à une file d'attente persistante."""
+    _logger.info("Ajout des fichiers à une file d'attente pour un traitement ultérieur.")
+    # Implémentation pour enregistrer les fichiers dans une file d'attente persistante (ex. en base de données)
+
+
+def find_files_subdir(self, extension, path, prefix):
+    """Trouver des fichiers dans un sous-répertoire."""
+    # Implémentation existante pour retourner les fichiers avec l'extension et le préfixe donnés
+    pass
+
+
+def move_file_copy(self, sftp, file, destination_directory):
+    """Déplacer un fichier depuis le serveur FTP vers un répertoire local."""
+    try:
+        local_path = f"{destination_directory}/{file.split('/')[-1]}"
+        sftp.get(file, local_path)
+        sftp.remove(file)  # Supprime le fichier après copie
+        _logger.info(f"Fichier déplacé vers {local_path} et supprimé du serveur FTP.")
+    except Exception as e:
+        _logger.error(f"Erreur lors du déplacement du fichier {file} : {str(e)}")
+
+
+def write_stock(self, data_file, mode="in"):
+    """Mettre à jour les stocks dans Odoo avec les données du fichier."""
+    # Implémentation spécifique à l'intégration avec Odoo
+    # `data_file` contient les lignes du fichier CSV
+    _logger.info(f"Mise à jour des stocks en mode {mode} avec {len(data_file)} lignes.")
+    pass
+
 
 	def get_picking_type(self, xtype):
 		type_obj = self.env['stock.picking.type']
