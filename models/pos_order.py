@@ -8,7 +8,7 @@ import csv
 
 import logging
 
-import paramiko
+#import paramiko
 
 HOSTNAME = "ftp.cluster027.hosting.ovh.net"
 USERNAME = "sopemoa"

@@ -3,10 +3,11 @@
 from odoo import models, fields, api
 from datetime import datetime
 import os
+from odoo.exceptions import UserError
 
-import pysftp
+#import pysftp
 
-import paramiko
+#import paramiko
 
 # HOSTNAME = "ftp.cluster027.hosting.ovh.net"
 # USERNAME = "sopemoa"
@@ -28,40 +29,102 @@ class productTemplate(models.Model):
 			rec.ext_id = val.name or None
 
 	def sage_sopro_update_stock(self):
-		sage_path_stock = self.env.user.company_id.sage_path_stock
+        sage_path_stock = self.env.user.company_id.sage_path_stock
 
-		if sage_path_stock:
-			files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
-			entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE)>=0, files_tab))
-			sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE)>=0, files_tab))
-			print('files_tab entree : ', entree_files_tab)
-			self.sage_sopro_stock_out(sortie_files_tab)
+        if sage_path_stock:
+            # Récupérer tous les fichiers en attente dans le répertoire
+            files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
+            entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE) >= 0, files_tab))
+            sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE) >= 0, files_tab))
+            print('Fichiers d\'entrée : ', entree_files_tab)
 
-			# SSH
-			ssh = paramiko.SSHClient()
-			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-			ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
-			sftp = ssh.open_sftp()
-			# END SSH
+            # Traiter les fichiers de sortie (facultatif)
+            self.sage_sopro_stock_out(sortie_files_tab)
 
-			for file in entree_files_tab:
-				f = sftp.open(file, "r")
+            # Connexion SSH pour récupérer les fichiers
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(
+                hostname=self.env.user.company_id.hostname,
+                username=self.env.user.company_id.hostusername,
+                password=self.env.user.company_id.hostmdp
+            )
+            sftp = ssh.open_sftp()
 
-				data_file_char = f.read()
-				data_file_char = data_file_char.decode('utf-8')
+            # Traitement séquentiel des fichiers d'entrée
+            for file in entree_files_tab:
+                if self.is_file_processed(file):
+                    self.env['mail.message'].create({
+                        'body': f"Le fichier {file} a déjà été traité.",
+                        'subject': "Fichier déjà traité",
+                        'type': 'notification',
+                        'author_id': self.env.user.partner_id.id,
+                    })
+                    continue  # Si le fichier a déjà été traité, on passe au suivant.
 
-				# self.remove_file_subdir(file)
-				# Use move_file_copy instead of remove_file_subdir
-				destination_directory = '/opt/odoo/sage_file'  # destination directory
-				self.move_file_copy(sftp, file, destination_directory)
-				# sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
+                try:
+                    f = sftp.open(file, "r")
+                    data_file_char = f.read().decode('utf-8')
 
-				data_file = data_file_char.split('\n')
-				self.write_stock(data_file)
+                    # Déplacement du fichier après traitement réussi
+                    destination_directory = '/opt/odoo/sage_file'
+                    self.move_file_copy(sftp, file, destination_directory)
 
-				f.close()
-				
-			ssh.close()
+                    data_file = data_file_char.split('\n')
+                    self.write_stock(data_file)  # Traitement du fichier
+
+                    # Validation des pickings après traitement
+                    self.validate_picking_references()
+
+                    # Mettre à jour l'état du fichier comme traité
+                    self.update_file_status(file)
+
+                    f.close()
+                except Exception as e:
+                    self.env.cr.rollback()
+                    self.env['mail.message'].create({
+                        'body': f"Erreur lors du traitement du fichier {file}: {str(e)}",
+                        'subject': "Erreur Sage Stock Update",
+                        'type': 'notification',
+                        'author_id': self.env.user.partner_id.id,
+                    })
+                    continue  # Si une erreur survient, on passe au fichier suivant.
+
+            # Fermer la connexion SSH après avoir traité tous les fichiers
+            ssh.close()
+
+        return True
+
+    def is_file_processed(self, file_name):
+        """
+        Vérifie si un fichier a déjà été traité.
+        Vous pouvez ajouter des conditions supplémentaires ici pour vérifier l'état du fichier.
+        Par exemple, un champ dans la base de données qui indique si le fichier a été correctement traité.
+        """
+        processed_files = self.env['ir.model.data'].sudo().search([('model', '=', 'product.template'), ('name', '=', file_name)])
+        return bool(processed_files)
+
+    def move_file_copy(self, sftp, file, destination_directory):
+        """
+        Déplace un fichier sur le FTP vers un répertoire de destination spécifié.
+        Cette méthode ne déplace que le fichier après le traitement.
+        """
+        try:
+            # Crée le répertoire destination s'il n'existe pas
+            try:
+                sftp.stat(destination_directory)
+            except FileNotFoundError:
+                sftp.mkdir(destination_directory)
+
+            # Générer le chemin complet vers le fichier de destination
+            destination_file = f"{destination_directory}/{os.path.basename(file)}"
+
+            # Déplacer le fichier sur le FTP
+            sftp.rename(file, destination_file)
+            print(f"Fichier déplacé avec succès vers : {destination_file}")
+        except Exception as e:
+            print(f"Erreur lors du déplacement du fichier {file} vers {destination_directory} : {e}")
+            raise UserError(f"Erreur lors du déplacement du fichier {file}: {e}")
 
 	def sage_sopro_stock_out(self, files_tab):
 		sage_stock_out = self.env.user.company_id.sage_stock_out
