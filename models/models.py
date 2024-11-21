@@ -51,8 +51,8 @@ class productTemplate(models.Model):
 				data_file_char = data_file_char.decode('utf-8')
 
 				# Utilisation du champ 'export_file_path' pour le répertoire de destination
-				ftp_destination_directory = self.env.user.company_id.export_file_path  # Récupérer le chemin à partir du champ 'export_file_path'
-				self.move_file_copy(sftp, file, ftp_destination_directory)  # Déplacer le fichier vers le répertoire FTP défini
+				destination_directory = self.env.user.company_id.export_file_path  # Récupérer le chemin à partir du champ 'export_file_path'
+				self.move_file_copy(sftp, file, destination_directory)  # Déplacer le fichier vers le répertoire FTP défini
 
 
 				data_file = data_file_char.split('\n')
