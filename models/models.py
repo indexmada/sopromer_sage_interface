@@ -39,7 +39,7 @@ class productTemplate(models.Model):
 	        entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE) >= 0, files_tab))
 	        sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE) >= 0, files_tab))
 	        print('files_tab entree : ', entree_files_tab)
-	        
+
 	        # Traite les fichiers de sortie
 	        self.sage_sopro_stock_out(sortie_files_tab)
 
@@ -59,21 +59,35 @@ class productTemplate(models.Model):
 	                data_file_char = f.read()
 	                data_file_char = data_file_char.decode('utf-8')
 
-	                # Tentative d'importation du fichier dans Odoo
+	                # Extraire les références du fichier
+	                references_in_file = self.extract_references(data_file_char)
+
+	                # Vérification des références existantes dans Odoo
+	                existing_references = self.env['stock.picking'].search([('name', 'in', references_in_file)]).mapped('name')
+	                new_references = [ref for ref in references_in_file if ref not in existing_references]
+
+	                if not new_references:
+	                    # Si toutes les références existent déjà, ignorer le fichier
+	                    print(f"Le fichier {file} contient uniquement des références déjà importées.")
+	                    f.close()
+	                    continue
+
+	                # Si des références sont nouvelles, importer le fichier
 	                data_file = data_file_char.split('\n')
 	                references = self.write_stock(data_file)  # Supposons que cette méthode retourne les références des transferts créés
 	                successful_transfers.extend(references)
 
-	                # Si l'importation a réussi, déplacer le fichier
-	                destination_directory = '/FTP-SCD/stock_file'  # Répertoire de destination
+	                # Déplacer le fichier après traitement
+	                destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
 	                self.move_file_copy(sftp, file, destination_directory)
 	                print(f"Le fichier {file} a été traité et déplacé.")
 
+	                # Suppression du fichier après traitement
+	                self.remove_file_from_sftp(sftp, file)
+
 	                f.close()
 	            except Exception as e:
-	                # Si une erreur se produit, afficher un message et laisser le fichier pour la prochaine récupération
 	                print(f"Erreur lors du traitement du fichier {file}: {e}")
-	                # Ne pas déplacer le fichier, il restera dans son répertoire d'origine pour être traité à nouveau
 	                f.close()
 
 	        # Fermeture de la connexion SSH
@@ -81,18 +95,20 @@ class productTemplate(models.Model):
 
 	        # Envoi d'un message dans le canal Odoo après traitement des transferts
 	        if successful_transfers:
-	            channel = self.env.ref('mail.channel_all_employees')  # Récupère le canal global
-	            if channel:
-	                message_body = (
-	                    "Les références suivantes ont été importées avec succès et ont le statut **Done** :\n"
-	                    + "\n".join(f"- {ref}" for ref in successful_transfers)
-	                )
-	                channel.message_post(
-	                    body=message_body,
-	                    subtype_xmlid="mail.mt_note",  # Type de message
-	                    author_id=self.env.ref("base.partner_root").id,  # Envoyé par Odoobot
-	                )
-
+	            try:
+	                channel = self.env.ref('mail.channel_all_employees')  # Récupère le canal global
+	                if channel:
+	                    message_body = (
+	                        "Les références suivantes ont été importées avec succès et ont le statut **Done** :\n"
+	                        + "\n".join(f"- {ref}" for ref in successful_transfers)
+	                    )
+	                    channel.message_post(
+	                        body=message_body,
+	                        subtype_xmlid="mail.mt_note",  # Type de message
+	                        author_id=self.env.ref("base.partner_root").id,  # Envoyé par Odoobot
+	                    )
+	            except ValueError:
+	                print("Le canal 'mail.channel_all_employees' n'a pas été trouvé.")
 
 
 	def sage_sopro_stock_out(self, files_tab):
