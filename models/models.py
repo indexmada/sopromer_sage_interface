@@ -38,62 +38,42 @@ class productTemplate(models.Model):
 	        files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
 	        entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE) >= 0, files_tab))
 	        sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE) >= 0, files_tab))
-	        print('Fichiers trouvés pour l\'entrée: ', entree_files_tab)
-
+	        print('files_tab entree : ', entree_files_tab)
+	        
 	        # Traite les fichiers de sortie
 	        self.sage_sopro_stock_out(sortie_files_tab)
 
 	        # Connexion SSH avec Paramiko
 	        ssh = paramiko.SSHClient()
 	        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-	        try:
-	            ssh.connect(
-	                hostname=self.env.user.company_id.hostname,
-	                username=self.env.user.company_id.hostusername,
-	                password=self.env.user.company_id.hostmdp
-	            )
-	        except Exception as e:
-	            print(f"Erreur de connexion SSH: {e}")
-	            return  # Sortir de la méthode si la connexion échoue
-
+	        ssh.connect(
+	            hostname=self.env.user.company_id.hostname,
+	            username=self.env.user.company_id.hostusername,
+	            password=self.env.user.company_id.hostmdp
+	        )
 	        sftp = ssh.open_sftp()
 
 	        for file in entree_files_tab:
 	            try:
-	                # Ouverture et lecture du fichier
 	                f = sftp.open(file, "r")
-	                data_file_char = f.read().decode('utf-8')
+	                data_file_char = f.read()
+	                data_file_char = data_file_char.decode('utf-8')
 
-	                # Extraire les références du fichier
-	                references_in_file = self.extract_references(data_file_char)
-	                print(f"Références trouvées dans le fichier {file}: {references_in_file}")
-
-	                # Vérification des références existantes dans Odoo
-	                existing_references = self.env['stock.picking'].search([('name', 'in', references_in_file)]).mapped('name')
-	                new_references = [ref for ref in references_in_file if ref not in existing_references]
-
-	                if not new_references:
-	                    # Si aucune nouvelle référence n'est trouvée, ignorer le fichier
-	                    print(f"Le fichier {file} contient uniquement des références déjà importées.")
-	                    f.close()
-	                    continue
-
-	                # Si des références sont nouvelles, importer le fichier
+	                # Tentative d'importation du fichier dans Odoo
 	                data_file = data_file_char.split('\n')
 	                references = self.write_stock(data_file)  # Supposons que cette méthode retourne les références des transferts créés
 	                successful_transfers.extend(references)
 
-	                # Déplacer le fichier après traitement
+	                # Si l'importation a réussi, déplacer le fichier
 	                destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
 	                self.move_file_copy(sftp, file, destination_directory)
 	                print(f"Le fichier {file} a été traité et déplacé.")
 
-	                # Suppression du fichier après traitement
-	                self.remove_file_from_sftp(sftp, file)
-
 	                f.close()
 	            except Exception as e:
+	                # Si une erreur se produit, afficher un message et laisser le fichier pour la prochaine récupération
 	                print(f"Erreur lors du traitement du fichier {file}: {e}")
+	                # Ne pas déplacer le fichier, il restera dans son répertoire d'origine pour être traité à nouveau
 	                f.close()
 
 	        # Fermeture de la connexion SSH
@@ -116,7 +96,6 @@ class productTemplate(models.Model):
 	                    print("Message envoyé dans le canal.")
 	            except ValueError:
 	                print("Le canal 'mail.channel_all_employees' n'a pas été trouvé.")
-
 
 
 	def sage_sopro_stock_out(self, files_tab):
