@@ -38,7 +38,7 @@ class productTemplate(models.Model):
 	        files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
 	        entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE) >= 0, files_tab))
 	        sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE) >= 0, files_tab))
-	        print('files_tab entree : ', entree_files_tab)
+	        print('Fichiers trouvés pour l\'entrée: ', entree_files_tab)
 
 	        # Traite les fichiers de sortie
 	        self.sage_sopro_stock_out(sortie_files_tab)
@@ -46,28 +46,34 @@ class productTemplate(models.Model):
 	        # Connexion SSH avec Paramiko
 	        ssh = paramiko.SSHClient()
 	        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-	        ssh.connect(
-	            hostname=self.env.user.company_id.hostname,
-	            username=self.env.user.company_id.hostusername,
-	            password=self.env.user.company_id.hostmdp
-	        )
+	        try:
+	            ssh.connect(
+	                hostname=self.env.user.company_id.hostname,
+	                username=self.env.user.company_id.hostusername,
+	                password=self.env.user.company_id.hostmdp
+	            )
+	        except Exception as e:
+	            print(f"Erreur de connexion SSH: {e}")
+	            return  # Sortir de la méthode si la connexion échoue
+
 	        sftp = ssh.open_sftp()
 
 	        for file in entree_files_tab:
 	            try:
+	                # Ouverture et lecture du fichier
 	                f = sftp.open(file, "r")
-	                data_file_char = f.read()
-	                data_file_char = data_file_char.decode('utf-8')
+	                data_file_char = f.read().decode('utf-8')
 
 	                # Extraire les références du fichier
 	                references_in_file = self.extract_references(data_file_char)
+	                print(f"Références trouvées dans le fichier {file}: {references_in_file}")
 
 	                # Vérification des références existantes dans Odoo
 	                existing_references = self.env['stock.picking'].search([('name', 'in', references_in_file)]).mapped('name')
 	                new_references = [ref for ref in references_in_file if ref not in existing_references]
 
 	                if not new_references:
-	                    # Si toutes les références existent déjà, ignorer le fichier
+	                    # Si aucune nouvelle référence n'est trouvée, ignorer le fichier
 	                    print(f"Le fichier {file} contient uniquement des références déjà importées.")
 	                    f.close()
 	                    continue
@@ -107,8 +113,10 @@ class productTemplate(models.Model):
 	                        subtype_xmlid="mail.mt_note",  # Type de message
 	                        author_id=self.env.ref("base.partner_root").id,  # Envoyé par Odoobot
 	                    )
+	                    print("Message envoyé dans le canal.")
 	            except ValueError:
 	                print("Le canal 'mail.channel_all_employees' n'a pas été trouvé.")
+
 
 
 	def sage_sopro_stock_out(self, files_tab):
