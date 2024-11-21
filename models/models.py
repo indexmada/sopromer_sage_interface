@@ -66,7 +66,7 @@ class productTemplate(models.Model):
 	                self.write_stock(data_file)  # Supposons que cette méthode effectue l'importation des transferts
 
 	                # Déplacer le fichier après traitement
-	                destination_directory = '/FTP-SCD/stock_file'  # Répertoire de destination
+	                destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
 	                self.move_file_copy(sftp, file, destination_directory)
 	                print(f"Le fichier {file} a été traité et déplacé.")
 
@@ -80,9 +80,6 @@ class productTemplate(models.Model):
 
 	        # Fermeture de la connexion SSH
 	        ssh.close()
-
-
-
 
 	def sage_sopro_stock_out(self, files_tab):
 		sage_stock_out = self.env.user.company_id.sage_stock_out
