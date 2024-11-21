@@ -52,7 +52,7 @@ class productTemplate(models.Model):
 
 				# self.remove_file_subdir(file)
 				# Use move_file_copy instead of remove_file_subdir
-				destination_directory = '/homez.138/grouperejz/test_odoo/Sortie/'  # destination directory
+				destination_directory = '/opt/odoo/sage_file'  # destination directory
 				self.move_file_copy(sftp, file, destination_directory)
 				# sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
 
