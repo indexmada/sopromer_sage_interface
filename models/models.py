@@ -27,14 +27,17 @@ class productTemplate(models.Model):
 			val = self.env['ir.model.data'].sudo().search([('model', '=', 'product.template'), ('res_id', '=', rec.id)], limit=1)
 			rec.ext_id = val.name or None
 
-	def sage_sopro_stock_out(self, files_tab):
-		sage_stock_out = self.env.user.company_id.sage_stock_out
+def sage_sopro_update_stock(self):
+		sage_path_stock = self.env.user.company_id.sage_path_stock
 		export_file_path = self.env.user.company_id.export_file_path
 
-		print('#_*' * 30)
-		print('files_tab sortie: ', files_tab)
+		if sage_path_stock:
+			files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
+			entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE)>=0, files_tab))
+			sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE)>=0, files_tab))
+			print('files_tab entree : ', entree_files_tab)
+			self.sage_sopro_stock_out(sortie_files_tab)
 
-		if sage_stock_out and files_tab:
 			# SSH
 			ssh = paramiko.SSHClient()
 			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -42,23 +45,23 @@ class productTemplate(models.Model):
 			sftp = ssh.open_sftp()
 			# END SSH
 
-			for file in files_tab:
+			for file in entree_files_tab:
 				f = sftp.open(file, "r")
 
 				data_file_char = f.read()
 				data_file_char = data_file_char.decode('utf-8')
 
-				# Déplacer le fichier vers le répertoire de destination et le supprimer du FTP
-				destination_directory = self.env.user.company_id.export_file_path # Répertoire de destination
-				self.move_file_copy(sftp, file, destination_directory)  # Déplace le fichier
-				# Ajout de la suppression du fichier sur le serveur FTP après traitement
+				# self.remove_file_subdir(file)
+				# Use move_file_copy instead of remove_file_subdir
+				destination_directory = self.env.user.company_id.export_file_path  # destination directory
+				self.move_file_copy(sftp, file, destination_directory)
 				# sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
 
 				data_file = data_file_char.split('\n')
-				self.write_stock(data_file, 'out')
+				self.write_stock(data_file)
 
 				f.close()
-
+				
 			ssh.close()
 
 	def sage_sopro_stock_out(self, files_tab):
