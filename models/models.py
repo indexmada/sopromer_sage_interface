@@ -27,65 +27,64 @@ class productTemplate(models.Model):
 			val = self.env['ir.model.data'].sudo().search([('model', '=', 'product.template'), ('res_id', '=', rec.id)], limit=1)
 			rec.ext_id = val.name or None
 
-def sage_sopro_update_stock(self):
-    sage_path_stock = self.env.user.company_id.sage_path_stock
-    export_file_path = self.env.user.company_id.export_file_path  # Récupérer le chemin du répertoire de destination
+	def sage_sopro_update_stock(self):
+	    sage_path_stock = self.env.user.company_id.sage_path_stock
+	    export_file_path = self.env.user.company_id.export_file_path  # Récupérer le chemin du répertoire de destination
 
-    if sage_path_stock:
-        files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
-        entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE) >= 0, files_tab))
-        sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE) >= 0, files_tab))
-        print('files_tab entree : ', entree_files_tab)
-        self.sage_sopro_stock_out(sortie_files_tab)
+	    if sage_path_stock:
+	        files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
+	        entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE) >= 0, files_tab))
+	        sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE) >= 0, files_tab))
+	        print('files_tab entree : ', entree_files_tab)
+	        self.sage_sopro_stock_out(sortie_files_tab)
 
-        # SSH
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        try:
-            ssh.connect(hostname=self.env.user.company_id.hostname, 
-                        username=self.env.user.company_id.hostusername, 
-                        password=self.env.user.company_id.hostmdp)
-            sftp = ssh.open_sftp()
-        except Exception as e:
-            print(f"Erreur de connexion SSH: {e}")
-            return  # Sortir de la méthode si la connexion échoue
+	        # SSH
+	        ssh = paramiko.SSHClient()
+	        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+	        try:
+	            ssh.connect(hostname=self.env.user.company_id.hostname, 
+	                        username=self.env.user.company_id.hostusername, 
+	                        password=self.env.user.company_id.hostmdp)
+	            sftp = ssh.open_sftp()
+	        except Exception as e:
+	            print(f"Erreur de connexion SSH: {e}")
+	            return  # Sortir de la méthode si la connexion échoue
 
-        # Vérification si 'export_file_path' est défini et s'il existe sur le serveur FTP
-        if not export_file_path:
-            print("Le chemin 'export_file_path' n'est pas défini.")
-            return
+	        # Vérification si 'export_file_path' est défini et s'il existe sur le serveur FTP
+	        if not export_file_path:
+	            print("Le chemin 'export_file_path' n'est pas défini.")
+	            return
 
-        try:
-            # Vérifier si le répertoire de destination existe, sinon le créer
-            try:
-                sftp.stat(export_file_path)  # Essayer d'accéder au répertoire
-            except FileNotFoundError:
-                print(f"Le répertoire {export_file_path} n'existe pas. Création du répertoire.")
-                sftp.mkdir(export_file_path)  # Créer le répertoire si non existant
+	        try:
+	            # Vérifier si le répertoire de destination existe, sinon le créer
+	            try:
+	                sftp.stat(export_file_path)  # Essayer d'accéder au répertoire
+	            except FileNotFoundError:
+	                print(f"Le répertoire {export_file_path} n'existe pas. Création du répertoire.")
+	                sftp.mkdir(export_file_path)  # Créer le répertoire si non existant
 
-            # Traitement des fichiers
-            for file in entree_files_tab:
-                f = sftp.open(file, "r")
+	            # Traitement des fichiers
+	            for file in entree_files_tab:
+	                f = sftp.open(file, "r")
 
-                data_file_char = f.read()
-                data_file_char = data_file_char.decode('utf-8')
+	                data_file_char = f.read()
+	                data_file_char = data_file_char.decode('utf-8')
 
-                # Déplacer le fichier vers le répertoire FTP défini
-                self.move_file_copy(sftp, file, export_file_path)
+	                # Déplacer le fichier vers le répertoire FTP défini
+	                self.move_file_copy(sftp, file, export_file_path)
 
-                # Traitement du contenu du fichier
-                data_file = data_file_char.split('\n')
-                self.write_stock(data_file)
+	                # Traitement du contenu du fichier
+	                data_file = data_file_char.split('\n')
+	                self.write_stock(data_file)
 
-                f.close()
+	                f.close()
 
-            print(f"Tous les fichiers ont été traités et déplacés vers {export_file_path}.")
-        except Exception as e:
-            print(f"Erreur lors de l'accès ou du traitement des fichiers: {e}")
-        finally:
-            ssh.close()
-
-
+	            print(f"Tous les fichiers ont été traités et déplacés vers {export_file_path}.")
+	        except Exception as e:
+	            print(f"Erreur lors de l'accès ou du traitement des fichiers: {e}")
+	        finally:
+	            ssh.close()
+	            
 
 	def sage_sopro_stock_out(self, files_tab):
 		sage_stock_out = self.env.user.company_id.sage_stock_out
