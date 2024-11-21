@@ -61,7 +61,7 @@ class productTemplate(models.Model):
 	                self.write_stock(data_file)
 
 	                # Si l'importation a réussi, déplacer le fichier
-	                destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
+	                destination_directory = '/FTP-SCD/stock_file'  # Répertoire de destination
 	                self.move_file_copy(sftp, file, destination_directory)
 	                print(f"Le fichier {file} a été traité et déplacé.")
 
