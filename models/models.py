@@ -121,7 +121,6 @@ class productTemplate(models.Model):
 	        if line_val[0] == 'E':
 	            print('***E')
 	            date_done = datetime.strptime(line_val[1], "%d/%m/%Y")
-	            
 	            # location_source
 	            if xtype == 'in':
 	                location_source_name = line_val[3]
@@ -136,21 +135,20 @@ class productTemplate(models.Model):
 	            # stock_picking
 	            stock_picking_vals = {
 	                "date_done": date_done,
-	                "name": line_val[4],  # Cette valeur est la référence du stock picking
+	                "name": line_val[4],  # Vérification basée sur le nom de picking
 	                "picking_type_id": self.get_picking_type(xtype).id
 	            }
 
-	            # Vérification si le stock picking existe déjà dans Odoo
-	            search_stock_picking_id = self.env['stock.picking'].search([('name', '=', stock_picking_vals['name'])])
-	            if search_stock_picking_id:
-	                # Si le stock picking existe déjà, on passe au fichier suivant sans déplacer ce fichier
-	                print(f"Stock picking avec la référence {line_val[4]} existe déjà. On passe.")
-	                continue  # On saute au prochain fichier ou ligne sans déplacer le fichier
+	            # Vérifier si un stock.picking avec ce nom existe déjà
+	            existing_picking = self.env['stock.picking'].sudo().search([('name', '=', stock_picking_vals['name'])])
+	            if existing_picking:
+	                # Si le picking existe déjà, passer directement à l'étape suivante (déplacement du fichier)
+	                print(f"Stock picking avec le nom {stock_picking_vals['name']} existe déjà. Passage au fichier suivant.")
+	                continue  # Passer au fichier suivant
 
-	            # Sinon, créer un nouveau stock picking
+	            # Si le picking n'existe pas, créer un nouveau stock.picking
 	            stock_picking_id = self.env['stock.picking'].sudo().create(stock_picking_vals)
 	            stock_picking_ids |= stock_picking_id
-
 	        elif stock_picking_id and len(line_val) > 3:
 	            print('**L')
 	            ref_prod = line_val[1]
@@ -185,15 +183,11 @@ class productTemplate(models.Model):
 	            }
 	            stock_move = self.env['stock.move'].sudo().create(stock_move_vals)
 
-	    # Si des stock pickings ont été créés et sont valides, on les valide
 	    if stock_picking_ids and len(stock_picking_ids) > 0:
 	        for picking in stock_picking_ids:
 	            picking.action_confirm()
 	            picking.action_assign()
 	            picking.button_validate()
-
-	    # Après avoir terminé l'importation, on déplace le fichier
-	    self.move_file_copy(sftp, file, destination_directory)
 
 
 	def get_partner_location(self):
