@@ -29,7 +29,6 @@ class productTemplate(models.Model):
 
 	def sage_sopro_update_stock(self):
 		sage_path_stock = self.env.user.company_id.sage_path_stock
-		export_file_path = self.env.user.company_id.export_file_path
 
 		if sage_path_stock:
 			files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
@@ -53,7 +52,7 @@ class productTemplate(models.Model):
 
 				# self.remove_file_subdir(file)
 				# Use move_file_copy instead of remove_file_subdir
-				destination_directory = self.env.user.company_id.export_file_path  # destination directory
+				destination_directory = '/homez.138/grouperejz/test_odoo/Sortie/'  # destination directory
 				self.move_file_copy(sftp, file, destination_directory)
 				# sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
 
