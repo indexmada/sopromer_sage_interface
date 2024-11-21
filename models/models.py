@@ -29,6 +29,7 @@ class productTemplate(models.Model):
 
 	def sage_sopro_update_stock(self):
 		sage_path_stock = self.env.user.company_id.sage_path_stock
+		export_file_path = self.env.user.company_id.export_file_path
 
 		if sage_path_stock:
 			files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
@@ -84,8 +85,8 @@ class productTemplate(models.Model):
 				data_file_char = data_file_char.decode('utf-8')
 
 				# Déplacer le fichier vers le répertoire de destination et le supprimer du FTP
-				ftp_destination_directory = '/FTP-SCD/stock_file'  # Répertoire de destination
-				self.move_file_copy(sftp, file, ftp_destination_directory)  # Déplace le fichier
+				destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
+				self.move_file_copy(sftp, file, destination_directory)  # Déplace le fichier
 				# Ajout de la suppression du fichier sur le serveur FTP après traitement
 				# sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
 
