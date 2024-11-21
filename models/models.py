@@ -84,7 +84,6 @@ class productTemplate(models.Model):
 	            print(f"Erreur lors de l'accès ou du traitement des fichiers: {e}")
 	        finally:
 	            ssh.close()
-	            
 
 	def sage_sopro_stock_out(self, files_tab):
 		sage_stock_out = self.env.user.company_id.sage_stock_out
