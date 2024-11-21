@@ -30,8 +30,11 @@ class productTemplate(models.Model):
 	def sage_sopro_update_stock(self):
 	    sage_path_stock = self.env.user.company_id.sage_path_stock
 
+	    # Initialiser la liste des transferts réussis
+	    successful_transfers = []  
+
 	    if sage_path_stock:
-	        # Recherche les fichiers CSV
+	        # Recherche des fichiers CSV
 	        files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
 	        entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE) >= 0, files_tab))
 	        sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE) >= 0, files_tab))
@@ -58,7 +61,8 @@ class productTemplate(models.Model):
 
 	                # Tentative d'importation du fichier dans Odoo
 	                data_file = data_file_char.split('\n')
-	                self.write_stock(data_file)
+	                references = self.write_stock(data_file)  # Supposons que cette méthode retourne les références des transferts créés
+	                successful_transfers.extend(references)
 
 	                # Si l'importation a réussi, déplacer le fichier
 	                destination_directory = '/FTP-SCD/stock_file'  # Répertoire de destination
@@ -88,6 +92,7 @@ class productTemplate(models.Model):
 	                    subtype_xmlid="mail.mt_note",  # Type de message
 	                    author_id=self.env.ref("base.partner_root").id,  # Envoyé par Odoobot
 	                )
+
 
 
 	def sage_sopro_stock_out(self, files_tab):
