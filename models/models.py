@@ -75,6 +75,20 @@ class productTemplate(models.Model):
 	        # Fermeture de la connexion SSH
 	        ssh.close()
 
+	        # Envoi d'un message dans le canal Odoo après traitement des transferts
+	        if successful_transfers:
+	            channel = self.env.ref('mail.channel_all_employees')  # Récupère le canal global
+	            if channel:
+	                message_body = (
+	                    "Les références suivantes ont été importées avec succès et ont le statut **Done** :\n"
+	                    + "\n".join(f"- {ref}" for ref in successful_transfers)
+	                )
+	                channel.message_post(
+	                    body=message_body,
+	                    subtype_xmlid="mail.mt_note",  # Type de message
+	                    author_id=self.env.ref("base.partner_root").id,  # Envoyé par Odoobot
+	                )
+
 
 	def sage_sopro_stock_out(self, files_tab):
 		sage_stock_out = self.env.user.company_id.sage_stock_out
