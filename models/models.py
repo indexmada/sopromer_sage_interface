@@ -28,58 +28,61 @@ class productTemplate(models.Model):
 			rec.ext_id = val.name or None
 
 	def sage_sopro_update_stock(self):
-	    sage_path_stock = self.env.user.company_id.sage_path_stock
+    sage_path_stock = self.env.user.company_id.sage_path_stock
 
-	    if sage_path_stock:
-	        # Recherche des fichiers CSV
-	        files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
-	        entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE) >= 0, files_tab))
-	        sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE) >= 0, files_tab))
-	        print('Fichiers trouvés pour l\'entrée: ', entree_files_tab)
+    if sage_path_stock:
+        # Recherche des fichiers CSV
+        files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
+        entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE) >= 0, files_tab))
+        sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE) >= 0, files_tab))
+        print('Fichiers trouvés pour l\'entrée: ', entree_files_tab)
 
-	        # Traite les fichiers de sortie
-	        self.sage_sopro_stock_out(sortie_files_tab)
+        # Traite les fichiers de sortie
+        self.sage_sopro_stock_out(sortie_files_tab)
 
-	        # Connexion SSH avec Paramiko
-	        ssh = paramiko.SSHClient()
-	        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-	        try:
-	            ssh.connect(
-	                hostname=self.env.user.company_id.hostname,
-	                username=self.env.user.company_id.hostusername,
-	                password=self.env.user.company_id.hostmdp
-	            )
-	        except Exception as e:
-	            print(f"Erreur de connexion SSH: {e}")
-	            return  # Sortir de la méthode si la connexion échoue
+        # Connexion SSH avec Paramiko
+        ssh = paramiko.SSHClient()
+        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+        try:
+            ssh.connect(
+                hostname=self.env.user.company_id.hostname,
+                username=self.env.user.company_id.hostusername,
+                password=self.env.user.company_id.hostmdp
+            )
+        except Exception as e:
+            print(f"Erreur de connexion SSH: {e}")
+            return  # Sortir de la méthode si la connexion échoue
 
-	        sftp = ssh.open_sftp()
+        sftp = ssh.open_sftp()
 
-	        for file in entree_files_tab:
-	            try:
-	                # Ouverture et lecture du fichier
-	                f = sftp.open(file, "r")
-	                data_file_char = f.read().decode('utf-8')
+        for file in entree_files_tab:
+            try:
+                # Ouverture et lecture du fichier
+                f = sftp.open(file, "r")
+                data_file_char = f.read().decode('utf-8')
 
-	                # Traiter le fichier sans vérifier les références
-	                data_file = data_file_char.split('\n')
-	                self.write_stock(data_file)  # Supposons que cette méthode effectue l'importation des transferts
+                # Traiter le fichier sans vérifier les références
+                data_file = data_file_char.split('\n')
+                self.write_stock(data_file)  # Supposons que cette méthode effectue l'importation des transferts
 
-	                # Déplacer le fichier après traitement
-	                destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
-	                self.move_file_copy(sftp, file, destination_directory)
-	                print(f"Le fichier {file} a été traité et déplacé.")
+                # Déplacer le fichier après traitement vers un autre répertoire sur le FTP
+                #destination_directory = '/opt/odoo/sage_file'  # Changer cela en un répertoire FTP
+                ftp_destination_directory = '/FTP-SCD/stock_file'  # Exemple : Répertoire "traités" sur le FTP
+                self.move_file_copy(sftp, file, ftp_destination_directory)  # Déplacer vers le répertoire FTP
+                print(f"Le fichier {file} a été traité et déplacé vers {ftp_destination_directory}.")
 
-	                # Suppression du fichier après traitement
-	                self.remove_file_from_sftp(sftp, file)
+                # Suppression du fichier après traitement
+                self.remove_file_from_sftp(sftp, file)
+                print(f"Le fichier {file} a été supprimé du serveur FTP.")
 
-	                f.close()
-	            except Exception as e:
-	                print(f"Erreur lors du traitement du fichier {file}: {e}")
-	                f.close()
+                f.close()
+            except Exception as e:
+                print(f"Erreur lors du traitement du fichier {file}: {e}")
+                f.close()
 
-	        # Fermeture de la connexion SSH
-	        ssh.close()
+        # Fermeture de la connexion SSH
+        ssh.close()
+
 
 	def sage_sopro_stock_out(self, files_tab):
 		sage_stock_out = self.env.user.company_id.sage_stock_out
