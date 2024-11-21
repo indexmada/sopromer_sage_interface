@@ -30,72 +30,58 @@ class productTemplate(models.Model):
 	def sage_sopro_update_stock(self):
 	    sage_path_stock = self.env.user.company_id.sage_path_stock
 
-	    # Initialiser la liste des transferts réussis
-	    successful_transfers = []  
-
 	    if sage_path_stock:
 	        # Recherche des fichiers CSV
 	        files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
 	        entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE) >= 0, files_tab))
 	        sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE) >= 0, files_tab))
-	        print('files_tab entree : ', entree_files_tab)
-	        
+	        print('Fichiers trouvés pour l\'entrée: ', entree_files_tab)
+
 	        # Traite les fichiers de sortie
 	        self.sage_sopro_stock_out(sortie_files_tab)
 
 	        # Connexion SSH avec Paramiko
 	        ssh = paramiko.SSHClient()
 	        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-	        ssh.connect(
-	            hostname=self.env.user.company_id.hostname,
-	            username=self.env.user.company_id.hostusername,
-	            password=self.env.user.company_id.hostmdp
-	        )
+	        try:
+	            ssh.connect(
+	                hostname=self.env.user.company_id.hostname,
+	                username=self.env.user.company_id.hostusername,
+	                password=self.env.user.company_id.hostmdp
+	            )
+	        except Exception as e:
+	            print(f"Erreur de connexion SSH: {e}")
+	            return  # Sortir de la méthode si la connexion échoue
+
 	        sftp = ssh.open_sftp()
 
 	        for file in entree_files_tab:
 	            try:
+	                # Ouverture et lecture du fichier
 	                f = sftp.open(file, "r")
-	                data_file_char = f.read()
-	                data_file_char = data_file_char.decode('utf-8')
+	                data_file_char = f.read().decode('utf-8')
 
-	                # Tentative d'importation du fichier dans Odoo
+	                # Traiter le fichier sans vérifier les références
 	                data_file = data_file_char.split('\n')
-	                references = self.write_stock(data_file)  # Supposons que cette méthode retourne les références des transferts créés
-	                successful_transfers.extend(references)
+	                self.write_stock(data_file)  # Supposons que cette méthode effectue l'importation des transferts
 
-	                # Si l'importation a réussi, déplacer le fichier
-	                destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
+	                # Déplacer le fichier après traitement
+	                destination_directory = '/FTP-SCD/stock_file'  # Répertoire de destination
 	                self.move_file_copy(sftp, file, destination_directory)
 	                print(f"Le fichier {file} a été traité et déplacé.")
 
+	                # Suppression du fichier après traitement
+	                self.remove_file_from_sftp(sftp, file)
+
 	                f.close()
 	            except Exception as e:
-	                # Si une erreur se produit, afficher un message et laisser le fichier pour la prochaine récupération
 	                print(f"Erreur lors du traitement du fichier {file}: {e}")
-	                # Ne pas déplacer le fichier, il restera dans son répertoire d'origine pour être traité à nouveau
 	                f.close()
 
 	        # Fermeture de la connexion SSH
 	        ssh.close()
 
-	        # Envoi d'un message dans le canal Odoo après traitement des transferts
-	        if successful_transfers:
-	            try:
-	                channel = self.env.ref('mail.channel_all_employees')  # Récupère le canal global
-	                if channel:
-	                    message_body = (
-	                        "Les références suivantes ont été importées avec succès et ont le statut **Done** :\n"
-	                        + "\n".join(f"- {ref}" for ref in successful_transfers)
-	                    )
-	                    channel.message_post(
-	                        body=message_body,
-	                        subtype_xmlid="mail.mt_note",  # Type de message
-	                        author_id=self.env.ref("base.partner_root").id,  # Envoyé par Odoobot
-	                    )
-	                    print("Message envoyé dans le canal.")
-	            except ValueError:
-	                print("Le canal 'mail.channel_all_employees' n'a pas été trouvé.")
+
 
 
 	def sage_sopro_stock_out(self, files_tab):
