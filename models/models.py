@@ -208,23 +208,34 @@ class productTemplate(models.Model):
 	    """Send notification to General Discussion with the processed references."""
 	    try:
 	        _logger = logging.getLogger(__name__)
+	        
+	        # Récupérer le canal 'mail.channel_all_employees' (ou un autre canal si nécessaire)
 	        channel = self.env.ref("mail.channel_all_employees", False)
 	        if not channel:
 	            _logger.error("Le canal mail.channel_all_employees n'a pas été trouvé.")
 	            return  # Si le canal n'existe pas, ne pas continuer.
 	        
+	        # Préparer le message
 	        message = f"Les transferts suivants ont été créés et validés : {', '.join(processed_references)}."
+	        
+	        # Récupérer le subtype 'mail.mt_comment' (si nécessaire)
 	        subtype = self.env.ref("mail.mt_comment", False)
 	        if not subtype:
 	            _logger.error("Le subtype mail.mt_comment n'a pas été trouvé.")
 	            return  # Si le subtype n'existe pas, ne pas envoyer de message.
 
-	        channel.message_post(body=message, subtype_id=subtype.id)
+	        # Définir OdooBot comme expéditeur
+	        odoo_bot = self.env.ref('base.user_root')  # OdooBot par défaut
+
+	        # Poster le message dans le canal en utilisant OdooBot comme expéditeur
+	        channel.message_post(body=message, subtype_id=subtype.id, author_id=odoo_bot.id)
+	        
 	        _logger.info(f"Message envoyé au canal {channel.name}: {message}")
 	    except Exception as e:
 	        _logger = logging.getLogger(__name__)
 	        _logger.error(f"Erreur lors de l'envoi du message : {str(e)}")
 	        raise
+
 
 
 
