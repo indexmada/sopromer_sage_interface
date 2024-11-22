@@ -121,7 +121,7 @@ class productTemplate(models.Model):
 	        if line_val[0] == 'E':
 	            print('***E')
 	            date_done = datetime.strptime(line_val[1], "%d/%m/%Y")
-	            # location_source
+	            # Définir la source de l'emplacement
 	            if xtype == 'in':
 	                location_source_name = line_val[3]
 	            else:
@@ -132,7 +132,6 @@ class productTemplate(models.Model):
 	                    "name": location_source_name
 	                })
 
-	            # stock_picking
 	            stock_picking_vals = {
 	                "date_done": date_done,
 	                "name": line_val[4],
@@ -143,12 +142,8 @@ class productTemplate(models.Model):
 	                stock_picking_vals["picking_type_code"] = 'incoming'
 	                stock_picking_vals["location_dest_id"] = location_source.id
 	                l_dest = location_source
-	                stock_picking_vals["location_id"] = self.env['stock.warehouse'].search(
-	                    [('company_id', '=', self.env.user.company_id.id)], limit=1
-	                ).lot_stock_id.id
-	                l_source = self.env['stock.warehouse'].search(
-	                    [('company_id', '=', self.env.user.company_id.id)], limit=1
-	                ).lot_stock_id
+	                stock_picking_vals["location_id"] = self.env['stock.warehouse'].search([('company_id', '=', self.env.user.company_id.id)], limit=1).lot_stock_id.id
+	                l_source = self.env['stock.warehouse'].search([('company_id', '=', self.env.user.company_id.id)], limit=1).lot_stock_id
 	            else:
 	                stock_picking_vals["picking_type_code"] = 'outgoing'
 	                stock_picking_vals["location_id"] = location_source.id
@@ -156,7 +151,7 @@ class productTemplate(models.Model):
 	                stock_picking_vals["location_dest_id"] = self.get_partner_location().id
 	                l_dest = self.get_partner_location()
 
-	            # check if picking already exists
+	            # Vérifier si le picking existe déjà
 	            search_stock_picking_id = self.env['stock.picking'].search([('name', '=', stock_picking_vals['name'])])
 	            if search_stock_picking_id:
 	                stock_picking_id = search_stock_picking_id
@@ -173,7 +168,6 @@ class productTemplate(models.Model):
 	            if not product_tmpl:
 	                product_tmpl = self.env['product.template'].sudo().create({
 	                    "name": prod_name,
-	                    # "default_code": ref_prod,
 	                    "standard_price": float(price.replace(',', '.')),
 	                    "type": 'product',
 	                    "new_dc": ref_prod,
@@ -201,29 +195,26 @@ class productTemplate(models.Model):
 	    if stock_picking_ids and len(stock_picking_ids) > 0:
 	        for picking in stock_picking_ids:
 	            picking.action_confirm()
-	            # print('*'*30)
-	            # print(picking.move_lines)
 	            picking.action_assign()
 	            picking.button_validate()
 
-	    _logger = logging.getLogger(__name__)
-	    _logger.info(f"File: {file_name}, Processed Lines: {processed_lines}")
-	    # Send message to general discussion channel
-	    self.send_file_processed_message(file_name, processed_lines)
+	    # Liste des références à inclure dans le message
+	    processed_references = [picking.name for picking in stock_picking_ids]
 
+	    # Envoyer un message
+	    self.send_file_processed_message(processed_references)
 
-	def send_file_processed_message(self, file_name, processed_lines):
-	    """Send notification to General Discussion when a file is processed."""
+	def send_file_processed_message(self, processed_references):
+	    """Send notification to General Discussion with the processed references."""
 	    try:
 	        channel = self.env.ref("mail.channel_all_employees")
 	        if channel:
-	            message = f"File **{file_name}** processed. Transfers created: {', '.join(processed_lines)}."
+	            message = f"Les transferts suivants ont été créés et validés : {', '.join(processed_references)}."
 	            channel.message_post(body=message, subtype_id=self.env.ref("mail.mt_comment").id)
 	    except Exception as e:
 	        _logger = logging.getLogger(__name__)
-	        _logger.error(f"Error sending message: {str(e)}")
+	        _logger.error(f"Erreur lors de l'envoi du message : {str(e)}")
 	        raise
-
 
 
 	def get_partner_location(self):
