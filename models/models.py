@@ -27,6 +27,25 @@ class productTemplate(models.Model):
 			val = self.env['ir.model.data'].sudo().search([('model', '=', 'product.template'), ('res_id', '=', rec.id)], limit=1)
 			rec.ext_id = val.name or None
 
+
+class FileImportQueue(models.Model):
+	_name = 'file.import.queue'
+	_description = 'Queue pour gérer l\'importation des fichiers'
+
+	name = fields.Char(string='Nom du fichier', required=True)
+	reference = fields.Char(string='Référence du fichier', required=True, unique=True)
+	status = fields.Selection([
+	    ('pending', 'En attente'),
+	    ('processing', 'En cours'),
+	    ('processed', 'Traité'),
+	    ('error', 'Erreur')
+	], default='pending', string='Statut', required=True)
+
+
+class StockImport(models.Model):
+	_name = 'stock.import'
+
+
 	def sage_sopro_update_stock(self):
 		sage_path_stock = self.env.user.company_id.sage_path_stock
 

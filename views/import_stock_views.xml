@@ -1,0 +1,45 @@
+<odoo>
+    <!-- Définition de la vue liste pour la gestion de la file d'attente -->
+    <record id="view_file_import_queue_tree" model="ir.ui.view">
+        <field name="name">file.import.queue.tree</field>
+        <field name="model">file.import.queue</field>
+        <field name="arch" type="xml">
+            <tree string="Fichiers en importation">
+                <!-- Colonne pour le nom du fichier -->
+                <field name="name" string="Nom du fichier"/>
+                <!-- Colonne pour la référence unique du fichier -->
+                <field name="reference" string="Référence"/>
+                <!-- Colonne pour le statut du fichier -->
+                <field name="status" string="Statut"/>
+            </tree>
+        </field>
+    </record>
+
+    <!-- Définition de la vue de recherche pour la gestion de la file d'attente -->
+    <record id="view_file_import_queue_search" model="ir.ui.view">
+        <field name="name">file.import.queue.search</field>
+        <field name="model">file.import.queue</field>
+        <field name="arch" type="xml">
+            <search>
+                <field name="name"/>
+                <field name="status"/>
+            </search>
+        </field>
+    </record>
+
+    <!-- Action pour ouvrir la vue liste -->
+    <record id="action_file_import_queue" model="ir.actions.act_window">
+        <field name="name">File Import Queue</field>
+        <field name="res_model">file.import.queue</field>
+        <field name="view_mode">tree</field>
+        <field name="view_id" ref="view_file_import_queue_tree"/>
+        <field name="search_view_id" ref="view_file_import_queue_search"/>
+    </record>
+    
+    <!-- Menu dans Inventaire / Importation Stock -->
+    <menuitem id="menu_inventory_import_stock" 
+              name="Importation Stock"
+              sequence ="3" 
+              action="action_file_import_queue"/>
+
+</odoo>

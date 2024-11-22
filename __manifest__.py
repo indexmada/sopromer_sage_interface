@@ -26,9 +26,10 @@
 
     # always loaded
     'data': [
-        # 'security/ir.model.access.csv',
+        'security/ir.model.access.csv',
         'views/views.xml',
         'views/inherit_pos_session_view.xml',
+        'views/import_stock_views.xml',
         'views/config_settings_view.xml',
         'views/cron.xml',
     ],
