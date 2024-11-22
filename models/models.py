@@ -209,10 +209,10 @@ class productTemplate(models.Model):
 				picking.action_assign()
 				picking.button_validate()
 
-	    _logger = logging.getLogger(__name__)
-	    _logger.info(f"File: {file_name}, Processed Lines: {processed_lines}")
-	    # Send message to general discussion channel
-	    self.send_file_processed_message(file_name, processed_lines)
+			    _logger = logging.getLogger(__name__)
+			    _logger.info(f"File: {file_name}, Processed Lines: {processed_lines}")
+			    # Send message to general discussion channel
+			    self.send_file_processed_message(file_name, processed_lines)
 
     def send_file_processed_message(self, file_name, processed_lines):
 	    """Send notification to General Discussion when a file is processed."""
