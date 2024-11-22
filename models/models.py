@@ -209,26 +209,22 @@ class productTemplate(models.Model):
 				picking.action_assign()
 				picking.button_validate()
 
-		_logger = logging.getLogger(__name__)
-		_logger.info(f"File: {file_name}, Processed Lines: {processed_lines}")
-		# Send message to general discussion channel
-        self.send_file_processed_message(file_name, processed_lines)
+    _logger = logging.getLogger(__name__)
+    _logger.info(f"File: {file_name}, Processed Lines: {processed_lines}")
+    # Send message to general discussion channel
+    self.send_file_processed_message(file_name, processed_lines)
 
-	    def send_file_processed_message(self, file_name, processed_lines):
-	        """Send notification to General Discussion when a file is processed."""
+    def send_file_processed_message(self, file_name, processed_lines):
+	    """Send notification to General Discussion when a file is processed."""
+	    try:
 	        channel = self.env.ref("mail.channel_all_employees")
 	        if channel:
 	            message = f"File **{file_name}** processed. Transfers created: {', '.join(processed_lines)}."
 	            channel.message_post(body=message, subtype_id=self.env.ref("mail.mt_comment").id)
+	    except Exception as e:
+	        _logger.error(f"Error sending message: {str(e)}")
+	        raise
 
-	        try:
-		    channel = self.env.ref("mail.channel_all_employees")
-		    if channel:
-		        message = f"File **{file_name}** processed. Transfers created: {', '.join(processed_lines)}."
-		        channel.message_post(body=message, subtype_id=self.env.ref("mail.mt_comment").id)
-			except Exception as e:
-			    _logger.error(f"Error sending message: {str(e)}")
-			    raise
 
 	def get_partner_location(self):
 		customerloc, supplierloc = self.env['stock.warehouse']._get_partner_locations()
