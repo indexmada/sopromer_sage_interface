@@ -22,7 +22,7 @@
     'version': '0.1',
 
     # any module necessary for this one to work correctly
-    'depends': ['base', 'base_setup', 'sale', 'point_of_sale','stock', 'pos_combo_product'],
+    'depends': ['base', 'mail', 'base_setup', 'sale', 'point_of_sale','stock', 'pos_combo_product'],
 
     # always loaded
     'data': [
