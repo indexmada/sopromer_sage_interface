@@ -118,86 +118,118 @@ class productTemplate(models.Model):
 
 	    for i in data:
 	        line_val = i.split(';')
-	        if line_val[0] == 'E':
-	            print('***E')
-	            date_done = datetime.strptime(line_val[1], "%d/%m/%Y")
-	            # Définir la source de l'emplacement
-	            if xtype == 'in':
-	                location_source_name = line_val[3]
-	            else:
-	                location_source_name = line_val[2]
-	            location_source = self.env['stock.location'].sudo().search([('name', '=', location_source_name)])
-	            if not location_source:
-	                location_source = self.env['stock.location'].sudo().create({
-	                    "name": location_source_name
-	                })
+	        
+	        # Gestion du fichier en fonction de son statut
+	        file_reference = self.get_file_reference_from_line(line_val)  # Fonction pour récupérer la référence du fichier
+	        file_queue = self.env['file.import.queue'].search([('reference', '=', file_reference)], limit=1)
+	        
+	        if not file_queue:
+	            # Si le fichier n'existe pas dans la queue, on le crée et on le marque comme 'en attente'
+	            file_queue = self.env['file.import.queue'].create({
+	                'name': file_reference,
+	                'reference': file_reference,
+	                'status': 'pending',
+	            })
+	        
+	        # Vérifier si un fichier est déjà en cours de traitement
+	        if file_queue.status == 'processing':
+	            _logger.info(f"Le fichier {file_reference} est déjà en cours de traitement, il sera ignoré pour cette exécution.")
+	            continue  # Passer au fichier suivant dans la liste
 
-	            stock_picking_vals = {
-	                "date_done": date_done,
-	                "name": line_val[4],
-	                "picking_type_id": self.get_picking_type(xtype).id
-	            }
+	        # Marquer le fichier comme étant en cours de traitement
+	        file_queue.write({'status': 'processing'})
+	        
+	        # Traitement du fichier
+	        try:
+	            if line_val[0] == 'E':
+	                print('***E')
+	                date_done = datetime.strptime(line_val[1], "%d/%m/%Y")
+	                # Définir la source de l'emplacement
+	                if xtype == 'in':
+	                    location_source_name = line_val[3]
+	                else:
+	                    location_source_name = line_val[2]
+	                location_source = self.env['stock.location'].sudo().search([('name', '=', location_source_name)])
+	                if not location_source:
+	                    location_source = self.env['stock.location'].sudo().create({
+	                        "name": location_source_name
+	                    })
 
-	            if xtype == 'in':
-	                stock_picking_vals["picking_type_code"] = 'incoming'
-	                stock_picking_vals["location_dest_id"] = location_source.id
-	                l_dest = location_source
-	                stock_picking_vals["location_id"] = self.env['stock.warehouse'].search([('company_id', '=', self.env.user.company_id.id)], limit=1).lot_stock_id.id
-	                l_source = self.env['stock.warehouse'].search([('company_id', '=', self.env.user.company_id.id)], limit=1).lot_stock_id
-	            else:
-	                stock_picking_vals["picking_type_code"] = 'outgoing'
-	                stock_picking_vals["location_id"] = location_source.id
-	                l_source = location_source
-	                stock_picking_vals["location_dest_id"] = self.get_partner_location().id
-	                l_dest = self.get_partner_location()
+	                stock_picking_vals = {
+	                    "date_done": date_done,
+	                    "name": line_val[4],
+	                    "picking_type_id": self.get_picking_type(xtype).id
+	                }
 
-	            # Vérifier si le picking existe déjà
-	            search_stock_picking_id = self.env['stock.picking'].search([('name', '=', stock_picking_vals['name'])])
-	            if search_stock_picking_id:
-	                stock_picking_id = search_stock_picking_id
-	            else:
-	                stock_picking_id = self.env['stock.picking'].sudo().create(stock_picking_vals)
-	            stock_picking_ids |= stock_picking_id
-	        elif stock_picking_id and len(line_val) > 3:
-	            print('**L')
-	            ref_prod = line_val[1]
-	            prod_name = line_val[2]
-	            qty = line_val[3]
-	            price = line_val[4]
-	            product_tmpl = self.env['product.template'].sudo().search([]).filtered(lambda p: p.ext_id == ref_prod)
-	            if not product_tmpl:
-	                product_tmpl = self.env['product.template'].sudo().create({
-	                    "name": prod_name,
-	                    "standard_price": float(price.replace(',', '.')),
-	                    "type": 'product',
-	                    "new_dc": ref_prod,
-	                    "available_in_pos": True
-	                })
+	                if xtype == 'in':
+	                    stock_picking_vals["picking_type_code"] = 'incoming'
+	                    stock_picking_vals["location_dest_id"] = location_source.id
+	                    l_dest = location_source
+	                    stock_picking_vals["location_id"] = self.env['stock.warehouse'].search([('company_id', '=', self.env.user.company_id.id)], limit=1).lot_stock_id.id
+	                    l_source = self.env['stock.warehouse'].search([('company_id', '=', self.env.user.company_id.id)], limit=1).lot_stock_id
+	                else:
+	                    stock_picking_vals["picking_type_code"] = 'outgoing'
+	                    stock_picking_vals["location_id"] = location_source.id
+	                    l_source = location_source
+	                    stock_picking_vals["location_dest_id"] = self.get_partner_location().id
+	                    l_dest = self.get_partner_location()
 
-	                self.env['ir.model.data'].sudo().create({
-	                    "name": ref_prod,
-	                    "model": "product.template",
-	                    "res_id": product_tmpl.id
-	                })
+	                # Vérifier si le picking existe déjà
+	                search_stock_picking_id = self.env['stock.picking'].search([('name', '=', stock_picking_vals['name'])])
+	                if search_stock_picking_id:
+	                    stock_picking_id = search_stock_picking_id
+	                else:
+	                    stock_picking_id = self.env['stock.picking'].sudo().create(stock_picking_vals)
+	                stock_picking_ids |= stock_picking_id
 
-	            stock_move_vals = {
-	                "product_id": product_tmpl.product_variant_id.id,
-	                "product_uom_qty": float(qty.replace(',', '.')),
-	                "quantity_done": float(qty.replace(',', '.')),
-	                "picking_id": stock_picking_id.id,
-	                "location_id": l_source.id,
-	                "location_dest_id": l_dest.id,
-	                "name": product_tmpl.product_variant_id.name,
-	                "product_uom": product_tmpl.uom_id.id
-	            }
-	            stock_move = self.env['stock.move'].sudo().create(stock_move_vals)
+	            elif stock_picking_id and len(line_val) > 3:
+	                print('**L')
+	                ref_prod = line_val[1]
+	                prod_name = line_val[2]
+	                qty = line_val[3]
+	                price = line_val[4]
+	                product_tmpl = self.env['product.template'].sudo().search([]).filtered(lambda p: p.ext_id == ref_prod)
+	                if not product_tmpl:
+	                    product_tmpl = self.env['product.template'].sudo().create({
+	                        "name": prod_name,
+	                        "standard_price": float(price.replace(',', '.')),
+	                        "type": 'product',
+	                        "new_dc": ref_prod,
+	                        "available_in_pos": True
+	                    })
 
+	                    self.env['ir.model.data'].sudo().create({
+	                        "name": ref_prod,
+	                        "model": "product.template",
+	                        "res_id": product_tmpl.id
+	                    })
+
+	                stock_move_vals = {
+	                    "product_id": product_tmpl.product_variant_id.id,
+	                    "product_uom_qty": float(qty.replace(',', '.')),
+	                    "quantity_done": float(qty.replace(',', '.')),
+	                    "picking_id": stock_picking_id.id,
+	                    "location_id": l_source.id,
+	                    "location_dest_id": l_dest.id,
+	                    "name": product_tmpl.product_variant_id.name,
+	                    "product_uom": product_tmpl.uom_id.id
+	                }
+	                stock_move = self.env['stock.move'].sudo().create(stock_move_vals)
+
+	            # Marquer le fichier comme traité une fois le fichier importé
+	            file_queue.write({'status': 'processed'})
+
+	        except Exception as e:
+	            _logger.error(f"Erreur lors du traitement du fichier {file_reference}: {str(e)}")
+	            file_queue.write({'status': 'pending'})  # Remettre en attente en cas d'erreur
+	            raise
+
+	    # Finaliser le traitement des pickings
 	    if stock_picking_ids and len(stock_picking_ids) > 0:
 	        for picking in stock_picking_ids:
 	            picking.action_confirm()
 	            picking.action_assign()
 	            picking.button_validate()
-
 	    # Liste des références à inclure dans le message
 	    processed_references = [picking.name for picking in stock_picking_ids]
 
