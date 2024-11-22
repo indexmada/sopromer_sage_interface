@@ -5,6 +5,8 @@ from datetime import datetime
 import os
 import pysftp
 import paramiko
+import logging
+
 
 # HOSTNAME = "ftp.cluster027.hosting.ovh.net"
 # USERNAME = "sopemoa"
