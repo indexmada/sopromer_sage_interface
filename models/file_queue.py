@@ -12,3 +12,4 @@ class FileImportQueue(models.Model):
         ('processed', 'Traité'),
         ('error', 'Erreur')
     ], default='pending', string='Statut', required=True)
+
