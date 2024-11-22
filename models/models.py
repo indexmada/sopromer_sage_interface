@@ -27,99 +27,41 @@ class productTemplate(models.Model):
 			val = self.env['ir.model.data'].sudo().search([('model', '=', 'product.template'), ('res_id', '=', rec.id)], limit=1)
 			rec.ext_id = val.name or None
 
-	def notify_file_processing(self, processed_files):
-        """
-        Notifies the general discussion channel (mail.channel_all_employees) about processed files.
-        """
-        channel = self.env.ref('mail.channel_all_employees')
-        if channel:
-            message = "Les fichiers suivants ont été traités :\n"
-            for file_name in processed_files:
-                message += f"- {file_name}\n"
-            channel.message_post(
-                body=message,
-                subtype_xmlid="mail.mt_comment",
-                author_id=self.env.ref("base.partner_root").id,  # Envoyé par OdooBot
-            )
-            
 	def sage_sopro_update_stock(self):
-        sage_path_stock = self.env.user.company_id.sage_path_stock
+		sage_path_stock = self.env.user.company_id.sage_path_stock
 
-        if sage_path_stock:
-            files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
-            entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE) >= 0, files_tab))
-            sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE) >= 0, files_tab))
-            print('files_tab entree : ', entree_files_tab)
-            self.sage_sopro_stock_out(sortie_files_tab)
+		if sage_path_stock:
+			files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
+			entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE)>=0, files_tab))
+			sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE)>=0, files_tab))
+			print('files_tab entree : ', entree_files_tab)
+			self.sage_sopro_stock_out(sortie_files_tab)
 
-            # SSH
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
-            sftp = ssh.open_sftp()
-            # END SSH
+			# SSH
+			ssh = paramiko.SSHClient()
+			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+			ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
+			sftp = ssh.open_sftp()
+			# END SSH
 
-            processed_files = []  # List to track processed files
+			for file in entree_files_tab:
+				f = sftp.open(file, "r")
 
-            for file in entree_files_tab:
-                f = sftp.open(file, "r")
+				data_file_char = f.read()
+				data_file_char = data_file_char.decode('utf-8')
 
-                data_file_char = f.read()
-                data_file_char = data_file_char.decode('utf-8')
+				# self.remove_file_subdir(file)
+				# Use move_file_copy instead of remove_file_subdir
+				destination_directory = '/opt/odoo/sage_file'  # destination directory
+				self.move_file_copy(sftp, file, destination_directory)
+				# sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
 
-                # Use move_file_copy instead of remove_file_subdir
-                destination_directory = '/opt/odoo/sage_file'  # destination directory
-                self.move_file_copy(sftp, file, destination_directory)
-                processed_files.append(file.split('/')[-1])  # Add file name to processed list
+				data_file = data_file_char.split('\n')
+				self.write_stock(data_file)
 
-                data_file = data_file_char.split('\n')
-                self.write_stock(data_file)
-
-                f.close()
-                
-            ssh.close()
-
-            # Notify the general channel with the list of processed files
-            if processed_files:
-                self.notify_file_processing(processed_files)
-
-    def sage_sopro_stock_out(self, files_tab):
-        sage_stock_out = self.env.user.company_id.sage_stock_out
-
-        print('#_*' * 30)
-        print('files_tab sortie: ', files_tab)
-
-        if sage_stock_out and files_tab:
-            # SSH
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
-            sftp = ssh.open_sftp()
-            # END SSH
-
-            processed_files = []  # List to track processed files
-
-            for file in files_tab:
-                f = sftp.open(file, "r")
-
-                data_file_char = f.read()
-                data_file_char = data_file_char.decode('utf-8')
-
-                # Déplacer le fichier vers le répertoire de destination et le supprimer du FTP
-                destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
-                self.move_file_copy(sftp, file, destination_directory)  # Déplace le fichier
-                processed_files.append(file.split('/')[-1])  # Add file name to processed list
-
-                data_file = data_file_char.split('\n')
-                self.write_stock(data_file, 'out')
-
-                f.close()
-
-            ssh.close()
-
-            # Notify the general channel with the list of processed files
-            if processed_files:
-                self.notify_file_processing(processed_files)
+				f.close()
+				
+			ssh.close()
 
 	def sage_sopro_stock_out(self, files_tab):
 		sage_stock_out = self.env.user.company_id.sage_stock_out
