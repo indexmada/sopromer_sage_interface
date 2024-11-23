@@ -1,4 +1,4 @@
-from odoo import models, fields
+from odoo import models, fields, api
 import csv
 
 class FileImportQueue(models.Model):

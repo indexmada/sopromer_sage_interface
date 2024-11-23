@@ -205,6 +205,11 @@ class StockImport(models.Model):
 		stock_picking_ids = self.env['stock.picking'].sudo()
 		print('----------', stock_picking_ids)
 
+		# Initialiser stock_picking_id
+		stock_picking_id = None
+		l_source = None  # Initialiser les variables utilisées dans les mouvements
+		l_dest = None
+
 		for i in data:
 			line_val = i.split(';')
 			if line_val[0] == 'E':
@@ -296,6 +301,7 @@ class StockImport(models.Model):
 
 		# Envoyer un message
 		self.send_file_processed_message(processed_references)
+
 
 	def send_file_processed_message(self, processed_references):
 		"""Send notification to General Discussion with the processed references."""
