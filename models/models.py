@@ -46,99 +46,99 @@ class StockImport(models.Model):
 	_name = 'stock.import'
 
 
-def sage_sopro_update_stock(self):
-	sage_path_stock = self.env.user.company_id.sage_path_stock
+	def sage_sopro_update_stock(self):
+		sage_path_stock = self.env.user.company_id.sage_path_stock
 
-	if sage_path_stock:
-		# Récupérer et filtrer les fichiers
-		files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
-		entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE) >= 0, files_tab))
-		sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE) >= 0, files_tab))
-		print('files_tab entree : ', entree_files_tab)
-		self.sage_sopro_stock_out(sortie_files_tab)
+		if sage_path_stock:
+			# Récupérer et filtrer les fichiers
+			files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
+			entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE) >= 0, files_tab))
+			sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE) >= 0, files_tab))
+			print('files_tab entree : ', entree_files_tab)
+			self.sage_sopro_stock_out(sortie_files_tab)
 
-		# Connexion SSH
-		ssh = paramiko.SSHClient()
-		ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-		ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
-		sftp = ssh.open_sftp()
-		# END SSH
+			# Connexion SSH
+			ssh = paramiko.SSHClient()
+			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+			ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
+			sftp = ssh.open_sftp()
+			# END SSH
 
-		for file in entree_files_tab:
-			# Vérifier si le fichier est déjà importé dans stock.picking
-			picking_name = file.split('/')[-1]  # Assurez-vous que vous extrayez le nom correct du fichier
-			stock_picking = self.env['stock.picking'].search([('name', '=', picking_name)], limit=1)
-
-			if stock_picking:
-				# Si le fichier est déjà dans stock.picking, on passe son importation
-				print(f"Le fichier {file} est déjà importé dans stock.picking.")
-				
-				# Vérifier si le fichier est déjà dans la file d'attente
-				queue_file = self.env['file.import.queue'].sudo().search([('name', '=', file)], limit=1)
-				if queue_file:
-					# Mettre son statut à 'processed'
-					queue_file.write({'status': 'processed'})
-
-					# Déplacer immédiatement le fichier
-					destination_directory = '/opt/odoo/sage_file'  # Répertoire où vous souhaitez déplacer le fichier
-					self.move_file_copy(sftp, file, destination_directory)
-
-				continue  # Passer à l'itération suivante du fichier
-
-			# Si le fichier n'est pas encore dans stock.picking, il doit être traité
-			# Vérifier s'il est déjà dans la file d'attente et en attente
-			queue_file = self.env['file.import.queue'].sudo().search([('name', '=', file)], limit=1)
-			if queue_file:
-				if queue_file.status == 'processing':
-					print(f"Le fichier {file} est déjà en traitement.")
-					continue  # Si déjà en traitement, passer au suivant
-				elif queue_file.status == 'processed':
-					print(f"Le fichier {file} a déjà été traité.")
-					continue  # Si déjà traité, passer au suivant
-
-			# Si le fichier n'est pas dans la file d'attente, l'ajouter avec un statut 'processing'
-			if not queue_file:
-				queue_file = self.env['file.import.queue'].create({
-					'name': file,
-					'reference': file.split('/')[-1],  # Utilisation du nom du fichier comme référence
-					'status': 'processing',
-				})
-			else:
-				queue_file.write({'status': 'processing'})
-
-			try:
-				# Traiter le fichier
-				f = sftp.open(file, "r")
-				data_file_char = f.read().decode('utf-8')
-
-				# Traitement des données du fichier
-				data_file = data_file_char.split('\n')
-				self.write_stock(data_file)
-
-				# Vérification si l'importation a été réussie
-				picking_name = data_file[0]  # Assumer que la première ligne contient la référence du stock.picking, à adapter si nécessaire
+			for file in entree_files_tab:
+				# Vérifier si le fichier est déjà importé dans stock.picking
+				picking_name = file.split('/')[-1]  # Assurez-vous que vous extrayez le nom correct du fichier
 				stock_picking = self.env['stock.picking'].search([('name', '=', picking_name)], limit=1)
 
 				if stock_picking:
-					# Importation réussie, déplacer le fichier
-					destination_directory = '/opt/odoo/sage_file'
-					self.move_file_copy(sftp, file, destination_directory)
+					# Si le fichier est déjà dans stock.picking, on passe son importation
+					print(f"Le fichier {file} est déjà importé dans stock.picking.")
+					
+					# Vérifier si le fichier est déjà dans la file d'attente
+					queue_file = self.env['file.import.queue'].sudo().search([('name', '=', file)], limit=1)
+					if queue_file:
+						# Mettre son statut à 'processed'
+						queue_file.write({'status': 'processed'})
 
-					# Mettre à jour le statut du fichier dans la file d'attente
-					queue_file.write({'status': 'processed'})
+						# Déplacer immédiatement le fichier
+						destination_directory = '/opt/odoo/sage_file'  # Répertoire où vous souhaitez déplacer le fichier
+						self.move_file_copy(sftp, file, destination_directory)
+
+					continue  # Passer à l'itération suivante du fichier
+
+				# Si le fichier n'est pas encore dans stock.picking, il doit être traité
+				# Vérifier s'il est déjà dans la file d'attente et en attente
+				queue_file = self.env['file.import.queue'].sudo().search([('name', '=', file)], limit=1)
+				if queue_file:
+					if queue_file.status == 'processing':
+						print(f"Le fichier {file} est déjà en traitement.")
+						continue  # Si déjà en traitement, passer au suivant
+					elif queue_file.status == 'processed':
+						print(f"Le fichier {file} a déjà été traité.")
+						continue  # Si déjà traité, passer au suivant
+
+				# Si le fichier n'est pas dans la file d'attente, l'ajouter avec un statut 'processing'
+				if not queue_file:
+					queue_file = self.env['file.import.queue'].create({
+						'name': file,
+						'reference': file.split('/')[-1],  # Utilisation du nom du fichier comme référence
+						'status': 'processing',
+					})
 				else:
-					# Si l'importation échoue, remettre le fichier en état 'pending' pour réessayer
-					queue_file.write({'status': 'pending'})
+					queue_file.write({'status': 'processing'})
 
-				f.close()
+				try:
+					# Traiter le fichier
+					f = sftp.open(file, "r")
+					data_file_char = f.read().decode('utf-8')
 
-			except Exception as e:
-				# Gestion des erreurs, remettre le fichier en statut 'error'
-				print(f"Erreur lors de l'importation du fichier {file}: {str(e)}")
-				queue_file.write({'status': 'error'})
+					# Traitement des données du fichier
+					data_file = data_file_char.split('\n')
+					self.write_stock(data_file)
 
-		# Fermeture de la connexion SSH
-		ssh.close()
+					# Vérification si l'importation a été réussie
+					picking_name = data_file[0]  # Assumer que la première ligne contient la référence du stock.picking, à adapter si nécessaire
+					stock_picking = self.env['stock.picking'].search([('name', '=', picking_name)], limit=1)
+
+					if stock_picking:
+						# Importation réussie, déplacer le fichier
+						destination_directory = '/opt/odoo/sage_file'
+						self.move_file_copy(sftp, file, destination_directory)
+
+						# Mettre à jour le statut du fichier dans la file d'attente
+						queue_file.write({'status': 'processed'})
+					else:
+						# Si l'importation échoue, remettre le fichier en état 'pending' pour réessayer
+						queue_file.write({'status': 'pending'})
+
+					f.close()
+
+				except Exception as e:
+					# Gestion des erreurs, remettre le fichier en statut 'error'
+					print(f"Erreur lors de l'importation du fichier {file}: {str(e)}")
+					queue_file.write({'status': 'error'})
+
+			# Fermeture de la connexion SSH
+			ssh.close()
 
 
 	def sage_sopro_stock_out(self, files_tab):
