@@ -87,7 +87,7 @@ class StockImport(models.Model):
 				for row in data_file:
 					# Extraire la référence de transfert (en supposant qu'elle est dans une colonne spécifique du CSV)
 					row_data = row.split(',')  # Adapter selon le format du fichier CSV
-					transfer_reference = row_data[1]  # Par exemple, la deuxième colonne contient 'transfer_reference'
+					transfer_reference = row_data[4]  # Par exemple, la deuxième colonne contient 'transfer_reference'
 
 					# Vérifier si la référence de transfert existe déjà dans stock.picking
 					existing_picking = self.env['stock.picking'].search([('transfer_reference', '=', transfer_reference)], limit=1)
