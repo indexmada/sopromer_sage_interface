@@ -64,14 +64,23 @@ class StockImport(models.Model):
 			# END SSH
 
 			for file in entree_files_tab:
-				# Ajout du traitement de la file d'attente
+				# Vérifier si le fichier existe déjà dans la file d'attente
 				queue_file = self.env['file.import.queue'].sudo().search([('name', '=', file)], limit=1)
-				if queue_file and queue_file.status != 'pending':
+				
+				# Si le fichier n'existe pas dans la file d'attente, l'ajouter avec le statut 'pending'
+				if not queue_file:
+					queue_file = self.env['file.import.queue'].sudo().create({
+						'name': file,
+						'reference': file,  # Référence à utiliser selon votre logique
+						'status': 'pending',
+					})
+
+				# Si le fichier est déjà en traitement ou traité, passer au suivant
+				if queue_file.status != 'pending':
 					continue
 
 				# Mettre le fichier en traitement
-				if queue_file:
-					queue_file.write({'status': 'processing'})
+				queue_file.write({'status': 'processing'})
 
 				f = sftp.open(file, "r")
 				data_file_char = f.read()
@@ -92,6 +101,7 @@ class StockImport(models.Model):
 					queue_file.write({'status': 'processed'})
 
 			ssh.close()
+
 
 	def sage_sopro_stock_out(self, files_tab):
 		sage_stock_out = self.env.user.company_id.sage_stock_out
