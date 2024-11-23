@@ -1,15 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <odoo>
 	<record id="cron_sage_sopro" model="ir.cron">
-		<field name="name">FTP SAGE SOPRO</field>
-		<field name="model_id" ref="model_product_template"/>
-		<field name="interval_number">1</field>
-		<field name="interval_type">hours</field>
-		<field name="active">True</field>
-		<field name="code">
-			model.sage_sopro_update_stock()
-		</field>
+	    <field name="name">FTP SAGE SOPRO</field>
+	    <field name="model_id" ref="model_stock_import"/> <!-- Modèle corrigé -->
+	    <field name="interval_number">1</field>
+	    <field name="interval_type">hours</field>
+	    <field name="active">True</field>
+	    <field name="code">
+	        model.sage_sopro_update_stock()
+	    </field>
 	</record>
+
 
 <!-- 	<record id="cron_sage_sopro_report_pos" model="ir.cron">
 		<field name="name">SAGE POS REPORT</field>
