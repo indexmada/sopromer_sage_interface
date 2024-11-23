@@ -1,0 +1,37 @@
+Directive module landed_cost
+
+Développer un module de gestion de coût sur Odoo 16.
+Avant de commencer le codage, donnes-moi comment répartir les coûts sur un achat ou importation : 
+Exemple si 
+- j'importe 200Kg de papier à 24EUR le kg
+- Toujours dans la même commande, 150kg de Liquide spéciale à 1,78Eur le kg
+- Un frais de transport de 2300 EUR
+- Un dédouanement de 450 EUR
+
+Au final, quel serait le cout unitaire de chaque produit ?
+
+Voici les grande lignes directrice du module 
+
+TACHE DE BASE :
+- Nom technique du module : index_landed_cost
+- Sur le modèle purchase.order ; ajouter un deuxième notebook après le premier qui est nommé Products
+- Faire que dans ce nouvel onglet, on va pouvoir insérer les coûts annexes tels que dans l'exemple que j'ai donné : dans le cas présent; les champs seront Libellé; là où se trouverait la description des coûts annexes, et Montant
+- Dans le premier onglet products après le champ price_unit, ajoutez le champ PR unitaire nom technique : cost_price à mettre en readonly.
+- Ajouter le champ cost_price dans le modèle product.product après le champ standard_price
+
+ACTION :
+- Ajouter une action qui fait que, lorsqu'on confirme la commande via le bouton button_confirm, le coût unitaire des produits sont recalculé automatiquement, et que le champ cost price est mis à jour automatiquement avec cette valeur calculée.
+- Toujours lorsqu'on confirme un RFQ, mettre à jour automatiquement le champ cost_price dans le modèle product.product
+
+A FAIRE AUSSI : 
+- détaillez-moi le nom de chaque fichier à mettre dans le module
+- l'auteur est : IndexMada
+
+
+- Historiser les PRIX unitaire dans produit
+- Ajout fonction sur METTRE A JOUR LE COUT dans produit, de reprendre le dernier prix unitaire dans un purchase order au statut purchase order ou blocked, en se basant sur la date de confirmation et le numéro de PO. Si déjà existant, ne pas ajouter l'historique. 
+- Dans historique des prix, la dernière valeur se trouve en haut de la liste
+
+- Calcul du champ converted_value par rapport à la devise cible. 
+
+CLOSE
