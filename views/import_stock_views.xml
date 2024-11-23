@@ -5,11 +5,8 @@
         <field name="model">file.import.queue</field>
         <field name="arch" type="xml">
             <tree string="Fichiers en importation">
-                <!-- Colonne pour le nom du fichier -->
                 <field name="name" string="Nom du fichier"/>
-                <!-- Colonne pour la référence unique du fichier -->
-                <field name="reference" string="Nom du fichier"/>
-                <!-- Colonne pour le statut du fichier -->
+                <field name="transfer_reference" string="Nom du fichier"/>
                 <field name="status" string="Statut"/>
             </tree>
         </field>

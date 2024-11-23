@@ -202,7 +202,6 @@ class StockImport(models.Model):
 		return val
 
 	def write_stock(self, data, xtype='in'):
-		stock_picking_id = False
 		stock_picking_ids = self.env['stock.picking'].sudo()
 		print('----------', stock_picking_ids)
 
@@ -232,8 +231,10 @@ class StockImport(models.Model):
 					stock_picking_vals["picking_type_code"] = 'incoming'
 					stock_picking_vals["location_dest_id"] = location_source.id
 					l_dest = location_source
-					stock_picking_vals["location_id"] = self.env['stock.warehouse'].search([('company_id', '=', self.env.user.company_id.id)], limit=1).lot_stock_id.id
-					l_source = self.env['stock.warehouse'].search([('company_id', '=', self.env.user.company_id.id)], limit=1).lot_stock_id
+					stock_picking_vals["location_id"] = self.env['stock.warehouse'].search(
+						[('company_id', '=', self.env.user.company_id.id)], limit=1).lot_stock_id.id
+					l_source = self.env['stock.warehouse'].search(
+						[('company_id', '=', self.env.user.company_id.id)], limit=1).lot_stock_id
 				else:
 					stock_picking_vals["picking_type_code"] = 'outgoing'
 					stock_picking_vals["location_id"] = location_source.id
@@ -244,9 +245,11 @@ class StockImport(models.Model):
 				# Vérifier si le picking existe déjà
 				search_stock_picking_id = self.env['stock.picking'].search([('name', '=', stock_picking_vals['name'])])
 				if search_stock_picking_id:
-					stock_picking_id = search_stock_picking_id
-				else:
-					stock_picking_id = self.env['stock.picking'].sudo().create(stock_picking_vals)
+					print(f"Le picking {search_stock_picking_id.name} existe déjà. Aucun traitement supplémentaire.")
+					continue  # Ignorer le fichier actuel
+
+				# Créer un nouveau picking si inexistant
+				stock_picking_id = self.env['stock.picking'].sudo().create(stock_picking_vals)
 				stock_picking_ids |= stock_picking_id
 			elif stock_picking_id and len(line_val) > 3:
 				print('**L')
@@ -325,6 +328,7 @@ class StockImport(models.Model):
 			_logger = logging.getLogger(__name__)
 			_logger.error(f"Erreur lors de l'envoi du message : {str(e)}")
 			raise
+
 
 
 
