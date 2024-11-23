@@ -21,15 +21,17 @@ class FileImportQueue(models.Model):
         with open(file_path, 'r') as csvfile:
             reader = csv.DictReader(csvfile)
             for row in reader:
-                # Supposons que la référence du stock.picking se trouve dans une colonne 'picking_name' du CSV
-                picking_name = row.get('picking_name')  # Remplacer 'picking_name' par le nom de colonne réel dans le CSV
+                # Supposons que la référence du stock.picking se trouve dans une colonne 'name' du CSV
+                picking_name = row.get('name')  # Remplacer 'name' par le nom de la colonne réelle dans le CSV
                 transfer_reference = row.get('transfer_reference')  # Colonne à récupérer pour 'Référence transfert'
 
-                # Vérifier si un fichier avec cette référence existe déjà dans la file d'attente
-                existing_entry = self.env['file.import.queue'].search([('reference', '=', picking_name)], limit=1)
-                if existing_entry:
-                    # Si une entrée existe déjà, la marquer comme 'duplicate'
-                    existing_entry.write({'status': 'duplicate'})
+                # Vérifier si la référence existe déjà dans le modèle stock.picking
+                existing_picking = self.env['stock.picking'].search([('name', '=', picking_name)], limit=1)
+                if existing_picking:
+                    # Si un picking avec cette référence existe déjà, marquer ce fichier comme 'duplicate'
+                    existing_entry = self.env['file.import.queue'].search([('reference', '=', picking_name)], limit=1)
+                    if existing_entry:
+                        existing_entry.write({'status': 'duplicate'})
                     continue  # Passer à la ligne suivante du fichier
 
                 # Créer une nouvelle entrée dans la file d'attente pour cette référence
@@ -39,3 +41,4 @@ class FileImportQueue(models.Model):
                     'transfer_reference': transfer_reference,  # Ajouter la Référence transfert
                     'status': 'pending',  # Statut initial
                 })
+

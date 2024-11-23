@@ -66,11 +66,10 @@ class StockImport(models.Model):
 				password=self.env.user.company_id.hostmdp
 			)
 			sftp = ssh.open_sftp()
-			# END SSH
 
 			for file in entree_files_tab:
 				try:
-					# Lire le fichier pour extraire la colonne 5
+					# Lire le fichier pour extraire la colonne 5 (référence)
 					f = sftp.open(file, "r")
 					csv_reader = csv.reader(f.read().decode('utf-8').splitlines())
 					file_reference = None
@@ -88,7 +87,7 @@ class StockImport(models.Model):
 					stock_picking = self.env['stock.picking'].search([('name', '=', file_reference)], limit=1)
 
 					if stock_picking:
-						# Si la référence existe, ne pas importer le fichier
+						# Si la référence existe déjà, ne pas importer le fichier
 						print(f"Le fichier {file} est déjà importé (référence : {file_reference}).")
 
 						# Vérifier si le fichier est déjà dans la file d'attente
@@ -135,9 +134,11 @@ class StockImport(models.Model):
 						destination_directory = '/opt/odoo/sage_file'
 						self.move_file_copy(sftp, file, destination_directory)
 						queue_file.write({'status': 'processed'})
+						print(f"Fichier {file} importé avec succès et déplacé.")
 					else:
 						# Si l'importation échoue, remettre le fichier en état 'pending'
 						queue_file.write({'status': 'pending'})
+						print(f"Erreur: L'importation du fichier {file} a échoué. Statut réinitialisé à 'pending'.")
 
 					f.close()
 
@@ -147,11 +148,10 @@ class StockImport(models.Model):
 					queue_file = self.env['file.import.queue'].sudo().search([('name', '=', file)], limit=1)
 					if queue_file:
 						queue_file.write({'status': 'error'})
+					# Laisser le fichier dans le répertoire distant et ne pas le déplacer ni le supprimer
 
 			# Fermeture de la connexion SSH
 			ssh.close()
-
-
 
 	def sage_sopro_stock_out(self, files_tab):
 		sage_stock_out = self.env.user.company_id.sage_stock_out
