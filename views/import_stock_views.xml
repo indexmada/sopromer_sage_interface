@@ -6,7 +6,7 @@
         <field name="arch" type="xml">
             <tree string="Fichiers en importation">
                 <field name="name" string="Nom du fichier"/>
-                <field name="transfer_reference" string="Nom du fichier"/>
+                <field name="transfer_reference" string="Référence stock"/>
                 <field name="status" string="Statut"/>
             </tree>
         </field>
