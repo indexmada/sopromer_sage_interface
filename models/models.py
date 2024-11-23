@@ -83,41 +83,51 @@ class StockImport(models.Model):
 				# Lecture des données du fichier CSV
 				data_file = data_file_char.split('\n')
 
-				# Vérification des références dans stock.picking avant l'importation
+				# Parcourir les lignes du fichier CSV
 				for row in data_file:
-					# Extraire la référence de transfert (en supposant qu'elle est dans une colonne spécifique du CSV)
-					row_data = row.split(',')  # Adapter selon le format du fichier CSV
-					transfer_reference = row_data[4]  # Par exemple, la deuxième colonne contient 'transfer_reference'
+					# Diviser chaque ligne en fonction du séparateur ';'
+					line_val = row.split(';')
 
-					# Vérifier si la référence de transfert existe déjà dans stock.picking
-					existing_picking = self.env['stock.picking'].search([('transfer_reference', '=', transfer_reference)], limit=1)
-					if existing_picking:
-						# Si la référence existe déjà, mettre à jour le statut du fichier en 'duplicate' et supprimer le fichier du FTP
-						existing_entry = self.env['file.import.queue'].search([('reference', '=', file)], limit=1)
-						if existing_entry:
-							existing_entry.write({'status': 'duplicate'})
-						
-						# Supprimer le fichier du serveur FTP
-						sftp.remove(file)
-						print(f"Fichier {file} marqué comme doublon et supprimé du serveur FTP.")
-						break  # Passer à l'itération suivante du fichier
+					# Vérifier si la ligne correspond à un enregistrement de type 'E' (en fonction de votre logique)
+					if line_val[0] == 'E':
+						# Extraire les données de la ligne
+						transfer_reference = line_val[4]  # La référence de transfert est dans la 5ème colonne (index 4)
 
-				else:  # Si aucune référence existante n'a été trouvée, on continue avec l'importation
-					# Traiter et importer les données
-					self.write_stock(data_file)
+						# Vérifier si la référence de transfert existe déjà dans stock.picking
+						existing_picking = self.env['stock.picking'].search([('name', '=', transfer_reference)], limit=1)
 
-					# Déplacer le fichier traité
-					destination_directory = '/opt/odoo/sage_file'
-					self.move_file_copy(sftp, file, destination_directory)
+						if existing_picking:
+							# Si la référence existe déjà dans stock.picking, marquer ce fichier comme 'duplicate'
+							# et supprimer le fichier du FTP
+							existing_entry = self.env['file.import.queue'].search([('reference', '=', file)], limit=1)
 
-					# Mettre à jour le statut du fichier dans la file d'attente à 'processed'
-					file_entry = self.env['file.import.queue'].search([('reference', '=', file)], limit=1)
-					if file_entry:
-						file_entry.write({'status': 'processed'})
+							if existing_entry:
+								# Mettre à jour le statut du fichier en 'duplicate'
+								existing_entry.write({'status': 'duplicate'})
+
+							# Supprimer le fichier du serveur FTP
+							sftp.remove(file)
+							print(f"Fichier {file} marqué comme doublon et supprimé du serveur FTP.")
+							break  # Passer à l'itération suivante du fichier
+
+						else:
+							# Si aucune référence existante n'a été trouvée, on continue avec l'importation
+							# Traiter et importer les données
+							self.write_stock(data_file)
+
+							# Déplacer le fichier traité
+							destination_directory = '/opt/odoo/sage_file'
+							self.move_file_copy(sftp, file, destination_directory)
+
+							# Mettre à jour le statut du fichier dans la file d'attente à 'processed'
+							file_entry = self.env['file.import.queue'].search([('reference', '=', file)], limit=1)
+							if file_entry:
+								file_entry.write({'status': 'processed'})
 
 				f.close()
 
 			ssh.close()
+
 
 
 	def sage_sopro_stock_out(self, files_tab):
