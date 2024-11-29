@@ -5,6 +5,7 @@
         <field name="model">file.import.queue</field>
         <field name="arch" type="xml">
             <tree string="Fichiers en importation">
+                <field name="create_date" string="Date"/>
                 <field name="name" string="Nom du fichier"/>
                 <field name="transfer_reference" string="Référence stock"/>
                 <field name="transfer_reference" string="Référence picking"/>
@@ -34,10 +35,11 @@
         <field name="search_view_id" ref="view_file_import_queue_search"/>
     </record>
     
-    <!-- Menu dans Inventaire / Importation Stock -->
     <menuitem id="menu_inventory_import_stock" 
               name="Importation Stock"
-              sequence ="3" 
+              sequence="3"
+              web_icon="/sopromer_sage_interface/static/description/img/icon.png"
               action="action_file_import_queue"/>
+
 
 </odoo>
