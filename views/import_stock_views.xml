@@ -38,7 +38,7 @@
     <menuitem id="menu_inventory_import_stock" 
               name="Importation Stock"
               sequence="3"
-              web_icon="/sopromer_sage_interface/static/description/img/icon.png"
+              web_icon="sopromer_sage_interface,static/description/img/icon.png"
               action="action_file_import_queue"/>
 
 

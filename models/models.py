@@ -47,82 +47,55 @@ class StockImport(models.Model):
 
 
 	def sage_sopro_update_stock(self):
+		# Initialisation par défaut pour éviter UnboundLocalError
+		data_file = []
+
 		sage_path_stock = self.env.user.company_id.sage_path_stock
 
 		if sage_path_stock:
-			# Trouver les fichiers CSV dans le sous-dossier
 			files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
 			entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE) >= 0, files_tab))
-			sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE) >= 0, files_tab))
-			print('files_tab entree : ', entree_files_tab)
 
-			# Traitement des fichiers de sortie
-			self.sage_sopro_stock_out(sortie_files_tab)
+			if not entree_files_tab:
+				print("Aucun fichier d'entrée trouvé.")
+				return  # Fin de la fonction si aucun fichier trouvé
 
-			# SSH
+			# SSH et ouverture des fichiers
 			ssh = paramiko.SSHClient()
 			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-			ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
-			sftp = ssh.open_sftp()
-			# FIN SSH
+			ssh.connect(
+				hostname=self.env.user.company_id.hostname,
+				username=self.env.user.company_id.hostusername,
+				password=self.env.user.company_id.hostmdp
+			)
 
-			# Processus pour les fichiers d'entrée
-			for file in entree_files_tab:
-				# Ajouter le fichier dans la file d'attente avec statut 'pending'
-				self.env['file.import.queue'].create({
-					'name': file,
-					'reference': file,  # Utilisation du nom de fichier comme référence, ou ajuster selon le cas
-					'status': 'pending',
-				})
+			with ssh.open_sftp() as sftp:
+				for file in entree_files_tab:
+					with sftp.open(file, "r") as f:
+						# Lecture des données
+						data_file_char = f.read()
 
-				# Ouvrir le fichier en lecture via SFTP
-				f = sftp.open(file, "r")
-				data_file_char = f.read()
-				data_file_char = data_file_char.decode('utf-8')
+						# Décodez les données et divisez-les en lignes
+						try:
+							data_file_char = data_file_char.decode('utf-8')
+						except UnicodeDecodeError:
+							print(f"Erreur d'encodage pour le fichier : {file}")
+							continue
 
-				# Lecture des données du fichier CSV
-				data_file = data_file_char.split('\n')
+						data_file = data_file_char.split('\n')
 
-			# Parcourir les lignes du fichier CSV
-			for row in data_file:
-				# Diviser chaque ligne en fonction du séparateur ';'
-				line_val = row.split(';')
+		# Parcourir les lignes si data_file contient des données
+		for row in data_file:
+			line_val = row.split(';')
 
-				# Vérifier si la ligne correspond à un enregistrement de type 'E'
-				if line_val[0] == 'E':
-					# Extraire les données de la ligne
-					transfer_reference = line_val[4]  # La référence de transfert est dans la 5ème colonne (index 4)
+			if line_val[0] == 'E':
+				transfer_reference = line_val[4]
 
-					# Vérifier si la référence de transfert existe déjà dans stock.picking
-					existing_picking = self.env['stock.picking'].search([('name', '=', transfer_reference)], limit=1)
-
-					if existing_picking:
-						# Si la référence existe déjà dans stock.picking, marquer ce fichier comme 'duplicate'
-						existing_entry = self.env['file.import.queue'].search([('reference', '=', file)], limit=1)
-
-						if existing_entry:
-							# Mettre à jour le statut du fichier en 'duplicate'
-							existing_entry.write({'status': 'duplicate'})
-
-						# Déplacer le fichier marqué comme `duplicate`
-						destination_directory = '/opt/odoo/sage_file'
-						self.move_file_copy(sftp, file, destination_directory)
-						print(f"Fichier {file} marqué comme doublon et déplacé vers {destination_directory}.")
-						break  # Passer à l'itération suivante
-
-					else:
-						# Si aucune référence existante n'a été trouvée, on continue avec l'importation
-						# Traiter et importer les données
-						self.write_stock(data_file)
-
-						# Mettre à jour le statut du fichier dans la file d'attente à 'processed'
-						file_entry = self.env['file.import.queue'].search([('reference', '=', file)], limit=1)
-						if file_entry:
-							file_entry.write({'status': 'processed'})
-
-						# Ne pas déplacer les fichiers avec les statuts `pending`, `processed`, ou `error`
-						print(f"Fichier {file} traité avec succès mais reste dans le répertoire d'origine.")
-
+				existing_picking = self.env['stock.picking'].search([('name', '=', transfer_reference)], limit=1)
+				if existing_picking:
+					print(f"Doublon détecté pour la référence {transfer_reference}.")
+				else:
+					print(f"Traitement de la référence {transfer_reference}.")
 
 				f.close()
 
