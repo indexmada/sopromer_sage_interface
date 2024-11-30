@@ -1,20 +1,13 @@
 # -*- coding: utf-8 -*-
 
 from odoo import models, fields, api
-
-from datetime import datetime,date
+from datetime import datetime, date
 import os
 import csv
-
 import logging
-
 import paramiko
 
-HOSTNAME = "ftp.cluster027.hosting.ovh.net"
-USERNAME = "sopemoa"
-PWD = "K71xiVEUb9cc12xuscHq"
-
-class posSession(models.Model):
+class PosSession(models.Model):
 	_inherit = "pos.session"
 
 	reported = fields.Boolean(string="Reported", default=False)
@@ -22,65 +15,61 @@ class posSession(models.Model):
 
 	def sage_sopro_pos_report(self):
 		date_today = date.today()
-		# session_ids = self.env['pos.session'].sudo().search([('reported', '=', False), ('state', '=', 'closed')])
 		file_path = ''
 		call_type = self._context.get('call_type', False)
 		if call_type and call_type == 'button':
 			file_path = self.env.user.company_id.export_file_path
 		else:
-			# sage_sale_export = self.env.user.company_id.sage_sale_export
 			file_path = self.env.user.company_id.sage_sale_export
-		
+
 		if file_path:
 			date_str = datetime.now().strftime("%d-%m-%Y %H%M%S")
+			filename = "Facture" + str(date_str) + ".csv"
+			file = file_path + '/' + str(self.config_id.code_pdv_sage) + '/' + filename
 
-			filename = "Facture"+str(date_str)+".csv"
-			file = file_path+'/'+str(self.config_id.code_pdv_sage)+'/'+filename
+			logging.error(f"___________________________________________ file_path : {file} ___________________________________")
 
-			logging.error("___________________________________________ file_path : {} ___________________________________".format(file))
+			# Verrouiller la session avant de procéder à l'exportation
+			self.env.cr.execute("SELECT id FROM pos_session WHERE id = %s FOR UPDATE", (self.id,))
 
 			# SSH
 			ssh = paramiko.SSHClient()
 			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-			ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
+			ssh.connect(
+				hostname=self.env.user.company_id.hostname,
+				username=self.env.user.company_id.hostusername,
+				password=self.env.user.company_id.hostmdp
+			)
 			sftp = ssh.open_sftp()
 			# END SSH
 
-			with sftp.open(file, mode='a') as f:
-				writer = csv.writer(f, delimiter=';', quotechar='"', quoting=csv.QUOTE_NONE)
+			try:
+				with sftp.open(file, mode='a') as f:
+					writer = csv.writer(f, delimiter=';', quotechar='"', quoting=csv.QUOTE_NONE)
 
-				session_id = self
-				stop_date = session_id.stop_at.strftime("%d/%m/%Y")
-				# writer.writerow(['E', session_id.config_id.name, stop_date,'',''])
-				writer.writerow(['E', session_id.account_move.name, stop_date,'',session_id.config_id.code_pdv_sage,session_id.config_id.souche])
-				for order in session_id.order_ids:
-					for line in order.lines:
+					session_id = self
+					stop_date = session_id.stop_at.strftime("%d/%m/%Y")
+					writer.writerow(['E', session_id.account_move.name, stop_date, '', session_id.config_id.code_pdv_sage, session_id.config_id.souche])
+
+					for order in session_id.order_ids:
+						for line in order.lines:
 							if not line.product_id.product_pack:
 								time_order = order.date_order.strftime("%H:%M:%S")
 								xqty = str(line.qty).replace('.', ',')
 								xprice_subtot = str(line.price_unit).replace('.', ',')
 								xstandard_p = str(line.product_id.standard_price).replace('.', ',')
-								writer.writerow(['L', line.product_id.ext_id,xqty,xprice_subtot,xstandard_p,time_order,order.user_id.name,order.name])
+								writer.writerow(['L', line.product_id.ext_id, xqty, xprice_subtot, xstandard_p, time_order, order.user_id.name, order.name])
 							else:
 								for p in line.product_id.product_item_ids:
 									time_order = order.date_order.strftime("%H:%M:%S")
 									xqty = str(p.quantity * line.qty).replace('.', ',')
 									xprice_subtot = str(p.unit_cost).replace('.', ',')
 									xstandard_p = str(p.product_id.standard_price).replace('.', ',')
-									writer.writerow(['L', p.product_id.ext_id,xqty,xprice_subtot,xstandard_p,time_order,order.user_id.name,order.name])
-
-			ssh.close()
+									writer.writerow(['L', p.product_id.ext_id, xqty, xprice_subtot, xstandard_p, time_order, order.user_id.name, order.name])
+			finally:
+				ssh.close()
 		else:
-			print("No Path Found to export Sale")
-
-
-	def find_files(self, filename, search_path):
-		found = False
-
-		for root, dir, files in os.walk(search_path):
-			if filename in files:
-				found = True
-		return found
+			logging.error("No Path Found to export Sale")
 
 	def _compute_account_move(self):
 		for rec in self:
@@ -97,8 +86,11 @@ class posSession(models.Model):
 			if not session.config_id.cash_control:
 				session.action_pos_session_close()
 
-		self.sage_sopro_pos_report()
+			# Appel immédiat à l'exportation
+			session.sage_sopro_pos_report()
+
 		return True
+
 
 class posConfig(models.Model):
 	_inherit = "pos.config"
