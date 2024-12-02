@@ -11,7 +11,7 @@ class FileImportQueue(models.Model):
     _description = 'Queue pour gérer l\'importation des fichiers'
 
     name = fields.Char(string='Nom du fichier', required=True)
-    reference_transfer = fields.Char(string='Référence du fichier', required=True, unique=True)
+    transfer_reference = fields.Char(string='Référence du fichier', required=True, unique=True)
     status = fields.Selection([ 
         ('pending', 'En attente'), 
         ('processing', 'En cours'), 
