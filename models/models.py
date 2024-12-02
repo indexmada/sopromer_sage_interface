@@ -96,6 +96,18 @@ class StockImport(models.Model):
 
 			ssh.close()
 
+	def extract_reference_from_file(self, data_file_char):
+        """
+		Fonction pour extraire la référence du fichier CSV.
+		Cette fonction est modifiée pour extraire la référence stock.picking du fichier.
+		"""
+		lines = data_file_char.split("\n")
+		if lines:
+		    first_line = lines[0].split(';')  # On sépare la première ligne par le caractère ';'
+		    reference = first_line[4]  # La référence de stock.picking est dans la 5ème colonne (index 4)
+		    return reference
+		return None
+
 	def sage_sopro_stock_out(self, files_tab):
 		sage_stock_out = self.env.user.company_id.sage_stock_out
 
