@@ -41,64 +41,45 @@ class FileImportQueue(models.Model):
 	    ('error', 'Erreur')
 	], default='pending', string='Statut', required=True)
 
+_logger = logging.getLogger(__name__)
 
 class StockImport(models.Model):
 	_name = 'stock.import'
 
-
 	def sage_sopro_update_stock(self):
-		# Initialisation par défaut pour éviter UnboundLocalError
-		data_file = []
-
 		sage_path_stock = self.env.user.company_id.sage_path_stock
 
 		if sage_path_stock:
 			files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
-			entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE) >= 0, files_tab))
+			entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE)>=0, files_tab))
+			sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE)>=0, files_tab))
+			print('files_tab entree : ', entree_files_tab)
+			self.sage_sopro_stock_out(sortie_files_tab)
 
-			if not entree_files_tab:
-				print("Aucun fichier d'entrée trouvé.")
-				return  # Fin de la fonction si aucun fichier trouvé
-
-			# SSH et ouverture des fichiers
+			# SSH
 			ssh = paramiko.SSHClient()
 			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-			ssh.connect(
-				hostname=self.env.user.company_id.hostname,
-				username=self.env.user.company_id.hostusername,
-				password=self.env.user.company_id.hostmdp
-			)
+			ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
+			sftp = ssh.open_sftp()
+			# END SSH
 
-			with ssh.open_sftp() as sftp:
-				for file in entree_files_tab:
-					with sftp.open(file, "r") as f:
-						# Lecture des données
-						data_file_char = f.read()
+			for file in entree_files_tab:
+				f = sftp.open(file, "r")
 
-						# Décodez les données et divisez-les en lignes
-						try:
-							data_file_char = data_file_char.decode('utf-8')
-						except UnicodeDecodeError:
-							print(f"Erreur d'encodage pour le fichier : {file}")
-							continue
+				data_file_char = f.read()
+				data_file_char = data_file_char.decode('utf-8')
 
-						data_file = data_file_char.split('\n')
+				# self.remove_file_subdir(file)
+				# Use move_file_copy instead of remove_file_subdir
+				destination_directory = '/opt/odoo/sage_file'  # destination directory
+				self.move_file_copy(sftp, file, destination_directory)
+				# sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
 
-		# Parcourir les lignes si data_file contient des données
-		for row in data_file:
-			line_val = row.split(';')
-
-			if line_val[0] == 'E':
-				transfer_reference = line_val[4]
-
-				existing_picking = self.env['stock.picking'].search([('name', '=', transfer_reference)], limit=1)
-				if existing_picking:
-					print(f"Doublon détecté pour la référence {transfer_reference}.")
-				else:
-					print(f"Traitement de la référence {transfer_reference}.")
+				data_file = data_file_char.split('\n')
+				self.write_stock(data_file)
 
 				f.close()
-
+				
 			ssh.close()
 
 
@@ -135,6 +116,7 @@ class StockImport(models.Model):
 				f.close()
 
 			ssh.close()
+
 
 	def get_picking_type(self, xtype):
 		type_obj = self.env['stock.picking.type']

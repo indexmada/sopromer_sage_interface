@@ -1,5 +1,4 @@
 from odoo import models, fields, api
-import csv
 
 class FileImportQueue(models.Model):
     _name = 'file.import.queue'
@@ -17,31 +16,33 @@ class FileImportQueue(models.Model):
         ('duplicate', 'En double')  # Nouveau statut pour les doublons
     ], default='pending', string='Statut', required=True)
 
-    def process_csv(self, file_path):
-        # Ouvrir et lire le fichier CSV
-        with open(file_path, 'r') as csvfile:
-            reader = csv.DictReader(csvfile)
-            for row in reader:
-                # Supposons que la référence du stock.picking se trouve dans la 4ème colonne du CSV
-                picking_name = row.get('name')  # Ici, on récupère la référence du stock.picking
+    # Cette méthode n'effectue que la gestion de la file d'attente, sans duplicata du traitement
+    def manage_import_queue(self):
+        """
+        Méthode pour gérer la file d'attente des fichiers.
+        Cette méthode vérifie les fichiers en attente et les traite, mais ne gère pas le téléchargement via SFTP.
+        """
+        # Recherche des fichiers en statut 'pending'
+        pending_files = self.search([('status', '=', 'pending')])
 
-                # Si la référence picking est vide ou invalide, ignorer cette ligne
-                if not picking_name:
-                    continue
+        for file in pending_files:
+            try:
+                # Ici, nous supposons que le fichier est déjà récupéré via SFTP dans Code 1
+                # Nous mettons simplement à jour le statut en 'processing' et procédons au traitement
+                file.status = 'processing'
+                # Appel d'une méthode pour traiter le fichier une fois qu'il est en 'processing'
+                self.process_file(file)
 
-                # Créer une nouvelle entrée dans stock.picking si la référence n'existe pas déjà
-                existing_picking = self.env['stock.picking'].search([('name', '=', picking_name)], limit=1)
-                if not existing_picking:
-                    # Si la référence picking n'existe pas encore, créer un nouveau picking
-                    # (Supposons que d'autres données comme 'date_done' soient aussi présentes dans le CSV)
-                    date_done = row.get('date_done')  # Exemple d'autre colonne à utiliser, à adapter
-                    self.env['stock.picking'].create({
-                        'name': picking_name,
-                        'date_done': date_done,
-                        'picking_type_id': self.get_picking_type('out').id,  # Exemple pour type de picking
-                    })
-                # Si la référence picking existe déjà, on passe à la ligne suivante (pas de traitement supplémentaire)
-                else:
-                    continue
+            except Exception as e:
+                _logger.error(f"Erreur lors du traitement du fichier {file.name} : {e}")
+                file.status = 'error'
 
-
+    def process_file(self, file):
+        """
+        Méthode pour traiter un fichier de la file d'attente.
+        :param file: l'objet fichier à traiter
+        """
+        # Logique pour traiter le fichier, par exemple marquer comme traité
+        # Une fois le traitement terminé, mettre à jour le statut à 'processed'
+        file.status = 'processed'
+        _logger.info(f"Fichier {file.name} traité avec succès.")
