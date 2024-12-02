@@ -70,3 +70,17 @@ class FileImportQueue(models.Model):
             _logger.info(f"Fichier {file_path} déplacé vers {destination_directory}")
         except Exception as e:
             _logger.error(f"Erreur lors du déplacement du fichier {file_path}: {str(e)}")
+
+
+    def extract_reference_from_file(self, data_file_char):
+        """
+        Fonction pour extraire la référence du fichier CSV.
+        Cette fonction est modifiée pour extraire la référence stock.picking du fichier.
+        """
+        lines = data_file_char.split("\n")
+        if lines:
+            first_line = lines[0].split(';')  # On sépare la première ligne par le caractère ';'
+            reference = first_line[4]  # La référence de stock.picking est dans la 5ème colonne (index 4)
+            return reference
+        return None
+
