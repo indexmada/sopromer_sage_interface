@@ -96,6 +96,44 @@ class StockImport(models.Model):
 
 			ssh.close()
 
+			# Envoyer un message
+			self.send_file_processed_message(processed_references)
+
+
+	def send_file_processed_message(self, processed_references):
+		"""Send notification to General Discussion with the processed references."""
+		try:
+			_logger = logging.getLogger(__name__)
+			
+			# Recherche du canal 'Import Stock' par son nom
+			channel = self.env['mail.channel'].search([('name', '=', 'Import Stock')], limit=1)
+			if not channel:
+				_logger.error("Le canal 'Import Stock' n'a pas été trouvé.")
+				return  # Si le canal n'existe pas, ne pas continuer.
+			
+			# Préparer le message
+			message = f"Les transferts suivants ont été créés et validés : {', '.join(processed_references)}."
+			
+			# Récupérer le subtype 'mail.mt_comment' (si nécessaire)
+			subtype = self.env.ref("mail.mt_comment", False)
+			if not subtype:
+				_logger.error("Le subtype mail.mt_comment n'a pas été trouvé.")
+				return  # Si le subtype n'existe pas, ne pas envoyer de message.
+
+			# Définir OdooBot comme expéditeur
+			odoo_bot = self.env.ref('base.user_admin')  # Admin par défaut
+
+			# Poster le message dans le canal en utilisant OdooBot comme expéditeur
+			channel.message_post(body=message, subtype_id=subtype.id, author_id=odoo_bot.id)
+			
+			_logger.info(f"Message envoyé au canal {channel.name}: {message}")
+		except Exception as e:
+			_logger = logging.getLogger(__name__)
+			_logger.error(f"Erreur lors de l'envoi du message : {str(e)}")
+			raise
+
+
+
 	def extract_reference_from_file(self, data_file_char):
 		"""
 		Fonction pour extraire la référence du fichier CSV.
@@ -254,44 +292,6 @@ class StockImport(models.Model):
 
 		# Liste des références à inclure dans le message
 		processed_references = [picking.name for picking in stock_picking_ids]
-
-		# Envoyer un message
-		self.send_file_processed_message(processed_references)
-
-
-	def send_file_processed_message(self, processed_references):
-		"""Send notification to General Discussion with the processed references."""
-		try:
-			_logger = logging.getLogger(__name__)
-			
-			# Recherche du canal 'Import Stock' par son nom
-			channel = self.env['mail.channel'].search([('name', '=', 'Import Stock')], limit=1)
-			if not channel:
-				_logger.error("Le canal 'Import Stock' n'a pas été trouvé.")
-				return  # Si le canal n'existe pas, ne pas continuer.
-			
-			# Préparer le message
-			message = f"Les transferts suivants ont été créés et validés : {', '.join(processed_references)}."
-			
-			# Récupérer le subtype 'mail.mt_comment' (si nécessaire)
-			subtype = self.env.ref("mail.mt_comment", False)
-			if not subtype:
-				_logger.error("Le subtype mail.mt_comment n'a pas été trouvé.")
-				return  # Si le subtype n'existe pas, ne pas envoyer de message.
-
-			# Définir OdooBot comme expéditeur
-			odoo_bot = self.env.ref('base.user_admin')  # Admin par défaut
-
-			# Poster le message dans le canal en utilisant OdooBot comme expéditeur
-			channel.message_post(body=message, subtype_id=subtype.id, author_id=odoo_bot.id)
-			
-			_logger.info(f"Message envoyé au canal {channel.name}: {message}")
-		except Exception as e:
-			_logger = logging.getLogger(__name__)
-			_logger.error(f"Erreur lors de l'envoi du message : {str(e)}")
-			raise
-
-
 
 	def get_partner_location(self):
 		customerloc, supplierloc = self.env['stock.warehouse']._get_partner_locations()
