@@ -264,10 +264,10 @@ class StockImport(models.Model):
 		try:
 			_logger = logging.getLogger(__name__)
 			
-			# Récupérer le canal 'mail.channel_all_employees' (ou un autre canal si nécessaire)
-			channel = self.env.ref("mail.channel_all_employees", False)
+			# Recherche du canal 'Import Stock' par son nom
+			channel = self.env['mail.channel'].search([('name', '=', 'Import Stock')], limit=1)
 			if not channel:
-				_logger.error("Le canal mail.channel_all_employees n'a pas été trouvé.")
+				_logger.error("Le canal 'Import Stock' n'a pas été trouvé.")
 				return  # Si le canal n'existe pas, ne pas continuer.
 			
 			# Préparer le message
@@ -280,7 +280,7 @@ class StockImport(models.Model):
 				return  # Si le subtype n'existe pas, ne pas envoyer de message.
 
 			# Définir OdooBot comme expéditeur
-			odoo_bot = self.env.ref('base.user_root')  # OdooBot par défaut
+			odoo_bot = self.env.ref('base.user_admin')  # Admin par défaut
 
 			# Poster le message dans le canal en utilisant OdooBot comme expéditeur
 			channel.message_post(body=message, subtype_id=subtype.id, author_id=odoo_bot.id)
@@ -290,8 +290,6 @@ class StockImport(models.Model):
 			_logger = logging.getLogger(__name__)
 			_logger.error(f"Erreur lors de l'envoi du message : {str(e)}")
 			raise
-
-
 
 
 
