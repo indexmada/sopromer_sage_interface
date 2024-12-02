@@ -46,9 +46,6 @@ _logger = logging.getLogger(__name__)
 class StockImport(models.Model):
 	_name = 'stock.import'
 
-	class StockImport(models.Model):
-	_name = 'stock.import'
-
 	def sage_sopro_update_stock(self):
 		sage_path_stock = self.env.user.company_id.sage_path_stock
 
