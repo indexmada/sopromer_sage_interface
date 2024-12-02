@@ -40,8 +40,18 @@ class FileImportQueue(models.Model):
                         'date_done': date_done,
                         'picking_type_id': self.get_picking_type('out').id,  # Exemple pour type de picking
                     })
-                # Si la référence picking existe déjà, on passe à la ligne suivante (pas de traitement supplémentaire)
+                    # Le fichier reste en "pending" jusqu'à son traitement complet
                 else:
-                    continue
+                    # Si la référence picking existe déjà, marquer le fichier comme "duplicate"
+                    file = self.env['file.import.queue'].search([('name', '=', file_path)], limit=1)
+                    file.write({'status': 'duplicate'})
+                    # Déplacer le fichier seulement si le statut est "duplicate"
+                    self.move_file_to_duplicate(file_path)
+
+    def move_file_to_duplicate(self, file_path):
+        # Déplacer le fichier vers le répertoire de fichiers traités
+        destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
+        self.move_file_copy(file_path, destination_directory)
+
 
 

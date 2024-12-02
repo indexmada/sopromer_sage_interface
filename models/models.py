@@ -47,40 +47,50 @@ class StockImport(models.Model):
 	_name = 'stock.import'
 
 	def sage_sopro_update_stock(self):
-		sage_path_stock = self.env.user.company_id.sage_path_stock
+	    sage_path_stock = self.env.user.company_id.sage_path_stock
 
-		if sage_path_stock:
-			files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
-			entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE)>=0, files_tab))
-			sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE)>=0, files_tab))
-			print('files_tab entree : ', entree_files_tab)
-			self.sage_sopro_stock_out(sortie_files_tab)
+	    if sage_path_stock:
+	        files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
+	        entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE)>=0, files_tab))
+	        sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE)>=0, files_tab))
+	        print('files_tab entree : ', entree_files_tab)
+	        self.sage_sopro_stock_out(sortie_files_tab)
 
-			# SSH
-			ssh = paramiko.SSHClient()
-			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-			ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
-			sftp = ssh.open_sftp()
-			# END SSH
+	        # SSH
+	        ssh = paramiko.SSHClient()
+	        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+	        ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
+	        sftp = ssh.open_sftp()
+	        # END SSH
 
-			for file in entree_files_tab:
-				f = sftp.open(file, "r")
+	        for file in entree_files_tab:
+	            # Ajouter à la file d'attente avec statut "pending"
+	            file_queue = self.env['file.import.queue'].create({
+	                'name': file,
+	                'reference': file,  # Référence du fichier
+	                'status': 'pending'
+	            })
 
-				data_file_char = f.read()
-				data_file_char = data_file_char.decode('utf-8')
+	            f = sftp.open(file, "r")
 
-				# self.remove_file_subdir(file)
-				# Use move_file_copy instead of remove_file_subdir
-				destination_directory = '/opt/odoo/sage_file'  # destination directory
-				self.move_file_copy(sftp, file, destination_directory)
-				# sftp.remove(file)  # Suppression du fichier sur le serveur FTP après traitement
+	            data_file_char = f.read()
+	            data_file_char = data_file_char.decode('utf-8')
 
-				data_file = data_file_char.split('\n')
-				self.write_stock(data_file)
+	            # Ne jamais activer la fonction qui déplace le fichier tant que son statut n'est pas "duplicate"
+	            if file_queue.status != 'duplicate':
+	                # Processus de lecture et d'importation
+	                data_file = data_file_char.split('\n')
+	                self.write_stock(data_file)
 
-				f.close()
-				
-			ssh.close()
+	            f.close()
+
+	            # Si le fichier est marqué comme "duplicate", alors on le déplace
+	            if file_queue.status == 'duplicate':
+	                destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
+	                self.move_file_copy(sftp, file, destination_directory)
+
+	        ssh.close()
+
 
 
 
