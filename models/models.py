@@ -76,7 +76,6 @@ class StockImport(models.Model):
 
 			ssh.close()
 
-
 	def sage_sopro_stock_out(self, files_tab):
 		sage_stock_out = self.env.user.company_id.sage_stock_out
 
