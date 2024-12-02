@@ -7,7 +7,7 @@
             <tree string="Fichiers en importation">
                 <field name="create_date" string="Date"/>
                 <field name="name" string="Nom du fichier"/>
-                <field name="stock_reference" string="Référence stock"/>
+                <field name="reference" string="Référence stock"/>
                 <field name="status" string="Statut"/>
             </tree>
         </field>
