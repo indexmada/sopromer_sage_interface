@@ -24,7 +24,7 @@ class FileImportQueue(models.Model):
         """
         Traite le fichier dans la file d'attente.
         1. Vérifie si la référence existe déjà dans Odoo.
-        2. Si oui, marque comme duplicate et déplace le fichier.
+        2. Si oui, marque comme duplicate, déplace et supprime le fichier.
         3. Sinon, importe le fichier et met à jour son statut comme 'processed'.
         """
         self.status = 'processing'  # Indiquer que le fichier est en cours de traitement
@@ -46,11 +46,11 @@ class FileImportQueue(models.Model):
                     # Vérifier si la référence existe déjà dans Odoo
                     existing_picking = self.env['stock.picking'].search([('name', '=', stock_reference)], limit=1)
                     if existing_picking:
-                        # Si la référence existe déjà, marquer comme duplicate et déplacer le fichier
+                        # Si la référence existe déjà, marquer comme duplicate
                         self.status = 'duplicate'
-                        destination_directory = '/opt/odoo/sage_file'
+                        # Déplacer le fichier vers un répertoire de doublons et le supprimer immédiatement
+                        destination_directory = '/opt/odoo/sage_file/'
                         self.move_file_to_duplicate(sftp, self.name, destination_directory)
-                        # Supprimer le fichier d'origine après le déplacement
                         sftp.remove(self.name)
                     else:
                         # Si la référence n'existe pas, importer les données
