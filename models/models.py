@@ -96,6 +96,9 @@ class StockImport(models.Model):
 
 			ssh.close()
 
+			# Liste des références à inclure dans le message
+			processed_references = [picking.name for picking in stock_picking_ids]
+
 			# Envoyer un message
 			self.send_file_processed_message(processed_references)
 
@@ -289,9 +292,6 @@ class StockImport(models.Model):
 				picking.action_confirm()
 				picking.action_assign()
 				picking.button_validate()
-
-		# Liste des références à inclure dans le message
-		processed_references = [picking.name for picking in stock_picking_ids]
 
 	def get_partner_location(self):
 		customerloc, supplierloc = self.env['stock.warehouse']._get_partner_locations()
