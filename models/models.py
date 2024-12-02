@@ -46,6 +46,9 @@ _logger = logging.getLogger(__name__)
 class StockImport(models.Model):
 	_name = 'stock.import'
 
+	class StockImport(models.Model):
+	_name = 'stock.import'
+
 	def sage_sopro_update_stock(self):
 		sage_path_stock = self.env.user.company_id.sage_path_stock
 
@@ -71,33 +74,10 @@ class StockImport(models.Model):
 					'status': 'pending'
 				})
 
-				f = sftp.open(file, "r")
-				data_file_char = f.read()
-				data_file_char = data_file_char.decode('utf-8')
-				data_file_lines = data_file_char.split('\n')
-
-				# Vérifier si la référence du stock.picking existe déjà
-				if len(data_file_lines) > 1:  # Vérification si le fichier n'est pas vide
-					first_data_line = data_file_lines[1].split(',')  # On suppose que les colonnes sont séparées par des virgules
-					if len(first_data_line) >= 5:
-						stock_reference = first_data_line[4]  # Colonne 5 (index 4)
-
-						existing_picking = self.env['stock.picking'].search([('name', '=', stock_reference)], limit=1)
-						if existing_picking:
-							# Si la référence existe déjà, marquer comme "duplicate" et déplacer le fichier
-							file_queue.status = 'duplicate'
-							destination_directory = '/opt/odoo/sage_file'  # Répertoire de destination
-							self.move_file_copy(sftp, file, destination_directory)
-						else:
-							# Si la référence n'existe pas, importer les données
-							self.write_stock(data_file_lines)
-							file_queue.status = 'processed'  # Marquer comme traité, mais ne pas déplacer
-
-				f.close()
+				# Lancer immédiatement le traitement après l'ajout
+				file_queue.process_file(sftp)
 
 			ssh.close()
-
-
 
 
 	def sage_sopro_stock_out(self, files_tab):
