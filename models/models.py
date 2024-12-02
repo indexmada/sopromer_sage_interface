@@ -76,10 +76,6 @@ class StockImport(models.Model):
 					'status': 'pending'
 				})
 
-				# Vérification de la référence dans stock.picking
-				reference = file_queue.reference
-				picking_exists = self.env['stock.picking'].search([('name', '=', reference)], limit=1)
-
 				if picking_exists:
 					# Si la référence existe déjà, on marque le fichier comme duplicate
 					file_queue.write({'status': 'duplicate'})
