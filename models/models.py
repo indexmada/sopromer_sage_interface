@@ -172,12 +172,6 @@ class StockImport(models.Model):
 					stock_picking_vals["location_dest_id"] = self.get_partner_location().id
 					l_dest = self.get_partner_location()
 
-				# Vérifier si le picking existe déjà
-				search_stock_picking_id = self.env['stock.picking'].search([('name', '=', stock_picking_vals['name'])])
-				if search_stock_picking_id:
-					print(f"Le picking {search_stock_picking_id.name} existe déjà. Aucun traitement supplémentaire.")
-					continue  # Ignorer le fichier actuel
-
 				# Créer un nouveau picking si inexistant
 				stock_picking_id = self.env['stock.picking'].sudo().create(stock_picking_vals)
 				stock_picking_ids |= stock_picking_id
