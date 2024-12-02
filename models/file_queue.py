@@ -1,18 +1,23 @@
 from odoo import models, fields, api
 import csv
 
+import os
+import logging
+
+_logger = logging.getLogger(__name__)
+
 class FileImportQueue(models.Model):
     _name = 'file.import.queue'
     _description = 'Queue pour gérer l\'importation des fichiers'
 
     name = fields.Char(string='Nom du fichier', required=True)
     reference = fields.Char(string='Référence du fichier', required=True, unique=True)
-    status = fields.Selection([
-        ('pending', 'En attente'),
-        ('processing', 'En cours'),
-        ('processed', 'Traité'),
-        ('duplicate', 'En double'),
-        ('error', 'Erreur'),
+    status = fields.Selection([ 
+        ('pending', 'En attente'), 
+        ('processing', 'En cours'), 
+        ('processed', 'Traité'), 
+        ('duplicate', 'En double'), 
+        ('error', 'Erreur'), 
     ], default='pending', string='Statut', required=True)
 
     def process_file(self, sftp):
@@ -45,6 +50,8 @@ class FileImportQueue(models.Model):
                         self.status = 'duplicate'
                         destination_directory = '/opt/odoo/sage_file'
                         self.move_file_to_duplicate(sftp, self.name, destination_directory)
+                        # Supprimer le fichier d'origine après le déplacement
+                        sftp.remove(self.name)
                     else:
                         # Si la référence n'existe pas, importer les données
                         self.env['stock.import'].write_stock(data_file_lines)
