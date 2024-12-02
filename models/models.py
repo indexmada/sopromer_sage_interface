@@ -46,57 +46,55 @@ _logger = logging.getLogger(__name__)
 class StockImport(models.Model):
 	_name = 'stock.import'
 
-def sage_sopro_update_stock(self):
-    sage_path_stock = self.env.user.company_id.sage_path_stock
+	def sage_sopro_update_stock(self):
+		sage_path_stock = self.env.user.company_id.sage_path_stock
 
-    if sage_path_stock:
-        files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
-        entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE) >= 0, files_tab))
-        sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE) >= 0, files_tab))
-        print('files_tab entree : ', entree_files_tab)
-        self.sage_sopro_stock_out(sortie_files_tab)
+		if sage_path_stock:
+			files_tab = self.find_files_subdir(".csv", sage_path_stock, "E")
+			entree_files_tab = list(filter(lambda f: f.find(FILE_NAME_ENTREE) >= 0, files_tab))
+			sortie_files_tab = list(filter(lambda f: f.find(FILE_NAME_SORTIE) >= 0, files_tab))
+			print('files_tab entree : ', entree_files_tab)
+			self.sage_sopro_stock_out(sortie_files_tab)
 
-        # SSH
-        ssh = paramiko.SSHClient()
-        ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-        ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
-        sftp = ssh.open_sftp()
-        # END SSH
+			# SSH
+			ssh = paramiko.SSHClient()
+			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+			ssh.connect(hostname=self.env.user.company_id.hostname, username=self.env.user.company_id.hostusername, password=self.env.user.company_id.hostmdp)
+			sftp = ssh.open_sftp()
+			# END SSH
 
-        for file in entree_files_tab:
-            f = sftp.open(file, "r")
+			for file in entree_files_tab:
+				f = sftp.open(file, "r")
 
-            data_file_char = f.read()
-            data_file_char = data_file_char.decode('utf-8')
+				data_file_char = f.read()
+				data_file_char = data_file_char.decode('utf-8')
 
-            # Ajout du fichier à la file d'attente
-            reference = self.extract_reference_from_file(data_file_char)
-            file_queue = self.env['file.import.queue'].create({
-                'name': file,
-                'reference': reference,  # Utilisation de la référence extraite
-                'status': 'pending'
-            })
+				# Ajout du fichier à la file d'attente
+				reference = self.extract_reference_from_file(data_file_char)
+				file_queue = self.env['file.import.queue'].create({
+					'name': file,
+					'reference': reference,  # Utilisation de la référence extraite
+					'status': 'pending'
+				})
 
-            # Vérification de la référence dans stock.picking
-            picking_exists = self.env['stock.picking'].search([('name', '=', reference)], limit=1)
+				# Vérification de la référence dans stock.picking
+				picking_exists = self.env['stock.picking'].search([('name', '=', reference)], limit=1)
 
-            if picking_exists:
-                # Si la référence existe déjà, on marque le fichier comme duplicate
-                file_queue.write({'status': 'duplicate'})
-                print(f"Le fichier {file} est marqué comme duplicate.")
-                sftp.remove(file)  # Suppression du fichier du répertoire distant
-            else:
-                # Si la référence n'existe pas, on traite le fichier
-                data_file = data_file_char.split('\n')
-                self.write_stock(data_file)
-                file_queue.write({'status': 'processed'})
-                print(f"Le fichier {file} a été traité.")
+				if picking_exists:
+					# Si la référence existe déjà, on marque le fichier comme duplicate
+					file_queue.write({'status': 'duplicate'})
+					print(f"Le fichier {file} est marqué comme duplicate.")
+					sftp.remove(file)  # Suppression du fichier du répertoire distant
+				else:
+					# Si la référence n'existe pas, on traite le fichier
+					data_file = data_file_char.split('\n')
+					self.write_stock(data_file)
+					file_queue.write({'status': 'processed'})
+					print(f"Le fichier {file} a été traité.")
 
-            f.close()
+				f.close()
 
-        ssh.close()
-
-
+			ssh.close()
 
 	def sage_sopro_stock_out(self, files_tab):
 		sage_stock_out = self.env.user.company_id.sage_stock_out
