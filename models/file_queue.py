@@ -1,6 +1,5 @@
 from odoo import models, fields, api
 import csv
-
 import os
 import logging
 
@@ -47,17 +46,19 @@ class FileImportQueue(models.Model):
                     existing_picking = self.env['stock.picking'].search([('name', '=', stock_reference)], limit=1)
                     if existing_picking:
                         # Si la référence existe déjà, marquer comme duplicate
-                        self.status = 'duplicate'
+                        _logger.info(f"Doublon trouvé pour le fichier {self.name} avec la référence {stock_reference}")
+                        self.write({'status': 'duplicate'})  # Mise à jour du statut du fichier
+                        
                         # Déplacer le fichier vers un répertoire de doublons et le supprimer immédiatement
-                        destination_directory = '/opt/odoo/sage_file/'
+                        destination_directory = '/opt/odoo/sage_file'  # Répertoire pour les doublons
                         self.move_file_to_duplicate(sftp, self.name, destination_directory)
-                        sftp.remove(self.name)
+                        sftp.remove(self.name)  # Supprimer le fichier du répertoire SFTP
                     else:
                         # Si la référence n'existe pas, importer les données
                         self.env['stock.import'].write_stock(data_file_lines)
-                        self.status = 'processed'  # Marquer comme traité
+                        self.write({'status': 'processed'})  # Marquer comme traité
         except Exception as e:
-            self.status = 'error'  # En cas d'erreur, mettre à jour le statut
+            self.write({'status': 'error'})  # En cas d'erreur, mettre à jour le statut
             _logger.error(f"Erreur lors du traitement du fichier {self.name}: {str(e)}")
 
     def move_file_to_duplicate(self, sftp, file_path, destination_directory):
@@ -66,9 +67,6 @@ class FileImportQueue(models.Model):
         """
         try:
             sftp.rename(file_path, f"{destination_directory}/{os.path.basename(file_path)}")
+            _logger.info(f"Fichier {file_path} déplacé vers {destination_directory}")
         except Exception as e:
             _logger.error(f"Erreur lors du déplacement du fichier {file_path}: {str(e)}")
-
-
-
-
