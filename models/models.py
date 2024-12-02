@@ -97,7 +97,7 @@ class StockImport(models.Model):
 			ssh.close()
 
 	def extract_reference_from_file(self, data_file_char):
-        """
+		"""
 		Fonction pour extraire la référence du fichier CSV.
 		Cette fonction est modifiée pour extraire la référence stock.picking du fichier.
 		"""
