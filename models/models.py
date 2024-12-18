@@ -3,7 +3,7 @@
 from odoo import models, fields, api
 from datetime import datetime
 import os
-import pysftp
+#import pysftp
 import paramiko
 import logging
 
