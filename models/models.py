@@ -157,132 +157,108 @@ class StockImport(models.Model):
 		val = types[:1]
 		return val
 
-	def write_stock(self, data, xtype='in'):
-	    if not data or len(data) < 2:
-	        _logger.error("Le fichier de données est vide ou incomplet. Aucun traitement effectué.")
-	        return
-
+	def write_stock(self, data, file_name, xtype='in'):
 	    stock_picking_ids = self.env['stock.picking'].sudo()
+	    print('----------', stock_picking_ids)
+
+	    # Initialiser stock_picking_id
 	    stock_picking_id = None
-	    l_source = None
+	    l_source = None  # Initialiser les variables utilisées dans les mouvements
 	    l_dest = None
 
-	    for i, line in enumerate(data, start=1):
-	        line_val = line.split(';')
-	        if len(line_val) < 5:  # Vérifier que chaque ligne a au moins 5 colonnes
-	            _logger.error(f"Ligne {i} du fichier est incorrecte : {line}. Ignorée.")
-	            continue
-
-	        if line_val[0] == 'E':  # Début d'un picking
+	    for i in data:
+	        line_val = i.split(';')
+	        if line_val[0] == 'E':
+	            print('***E')
 	            try:
 	                date_done = datetime.strptime(line_val[1], "%d/%m/%Y")
-	                location_source_name = line_val[3] if xtype == 'in' else line_val[2]
-	                location_source = self.env['stock.location'].sudo().search([('name', '=', location_source_name)])
-	                if not location_source:
-	                    location_source = self.env['stock.location'].sudo().create({"name": location_source_name})
+	            except ValueError:
+	                # Log erreur sur le fichier et ligne spécifique
+	                _logger.error(f"Ligne {data.index(i) + 1} du fichier {file_name} est incorrecte : Date invalide. Ignorée.")
+	                continue  # Ignore la ligne incorrecte
+	            
+	            # Définir la source de l'emplacement
+	            if xtype == 'in':
+	                location_source_name = line_val[3]
+	            else:
+	                location_source_name = line_val[2]
+	            
+	            location_source = self.env['stock.location'].sudo().search([('name', '=', location_source_name)])
+	            if not location_source:
+	                location_source = self.env['stock.location'].sudo().create({
+	                    "name": location_source_name
+	                })
 
-	                stock_picking_vals = {
-	                    "date_done": date_done,
-	                    "name": line_val[4],
-	                    "picking_type_id": self.get_picking_type(xtype).id
-	                }
+	            stock_picking_vals = {
+	                "date_done": date_done,
+	                "name": line_val[4],
+	                "picking_type_id": self.get_picking_type(xtype).id
+	            }
 
-	                if xtype == 'in':
-	                    stock_picking_vals.update({
-	                        "picking_type_code": 'incoming',
-	                        "location_dest_id": location_source.id,
-	                        "location_id": self.env['stock.warehouse'].search(
-	                            [('company_id', '=', self.env.user.company_id.id)], limit=1).lot_stock_id.id
-	                    })
-	                    l_dest = location_source
-	                    l_source = self.env['stock.warehouse'].search(
-	                        [('company_id', '=', self.env.user.company_id.id)], limit=1).lot_stock_id
-	                else:
-	                    stock_picking_vals.update({
-	                        "picking_type_code": 'outgoing',
-	                        "location_id": location_source.id,
-	                        "location_dest_id": self.get_partner_location().id
-	                    })
-	                    l_source = location_source
-	                    l_dest = self.get_partner_location()
+	            if xtype == 'in':
+	                stock_picking_vals["picking_type_code"] = 'incoming'
+	                stock_picking_vals["location_dest_id"] = location_source.id
+	                l_dest = location_source
+	                stock_picking_vals["location_id"] = self.env['stock.warehouse'].search(
+	                    [('company_id', '=', self.env.user.company_id.id)], limit=1).lot_stock_id.id
+	                l_source = self.env['stock.warehouse'].search(
+	                    [('company_id', '=', self.env.user.company_id.id)], limit=1).lot_stock_id
+	            else:
+	                stock_picking_vals["picking_type_code"] = 'outgoing'
+	                stock_picking_vals["location_id"] = location_source.id
+	                l_source = location_source
+	                stock_picking_vals["location_dest_id"] = self.get_partner_location().id
+	                l_dest = self.get_partner_location()
 
-	                # Vérifier si le picking existe déjà
-	                search_stock_picking_id = self.env['stock.picking'].search([('name', '=', stock_picking_vals['name'])])
-	                if search_stock_picking_id:
-	                    _logger.info(f"Ligne {i} : Le picking {search_stock_picking_id.name} existe déjà. Ignoré.")
-	                    continue
+	            # Vérifier si le picking existe déjà
+	            search_stock_picking_id = self.env['stock.picking'].search([('name', '=', stock_picking_vals['name'])])
+	            if search_stock_picking_id:
+	                print(f"Le picking {search_stock_picking_id.name} existe déjà. Aucun traitement supplémentaire.")
+	                continue  # Ignorer le fichier actuel
 
-	                # Créer un nouveau picking
-	                stock_picking_id = self.env['stock.picking'].sudo().create(stock_picking_vals)
-	                stock_picking_ids |= stock_picking_id
-	            except Exception as e:
-	                _logger.error(f"Ligne {i} : Erreur lors du traitement du picking : {e}")
-	                continue
+	            # Créer un nouveau picking si inexistant
+	            stock_picking_id = self.env['stock.picking'].sudo().create(stock_picking_vals)
+	            stock_picking_ids |= stock_picking_id
+	        elif stock_picking_id and len(line_val) > 3:
+	            print('**L')
+	            ref_prod = line_val[1]
+	            prod_name = line_val[2]
+	            qty = line_val[3]
+	            price = line_val[4]
+	            product_tmpl = self.env['product.template'].sudo().search([]).filtered(lambda p: p.ext_id == ref_prod)
+	            if not product_tmpl:
+	                product_tmpl = self.env['product.template'].sudo().create({
+	                    "name": prod_name,
+	                    "standard_price": float(price.replace(',', '.')),
+	                    "type": 'product',
+	                    "new_dc": ref_prod,
+	                    "available_in_pos": True
+	                })
 
-	        elif stock_picking_id and len(line_val) > 3:  # Ajouter un mouvement au picking
-	            try:
-	                ref_prod = line_val[1]
-	                if not ref_prod:
-	                    _logger.error(f"Ligne {i} : Référence produit manquante. Ignorée.")
-	                    continue
+	                self.env['ir.model.data'].sudo().create({
+	                    "name": ref_prod,
+	                    "model": "product.template",
+	                    "res_id": product_tmpl.id
+	                })
 
-	                prod_name = line_val[2]
-	                qty = line_val[3]
-	                price = line_val[4]
+	            stock_move_vals = {
+	                "product_id": product_tmpl.product_variant_id.id,
+	                "product_uom_qty": float(qty.replace(',', '.')),
+	                "quantity_done": float(qty.replace(',', '.')),
+	                "picking_id": stock_picking_id.id,
+	                "location_id": l_source.id,
+	                "location_dest_id": l_dest.id,
+	                "name": product_tmpl.product_variant_id.name,
+	                "product_uom": product_tmpl.uom_id.id
+	            }
+	            stock_move = self.env['stock.move'].sudo().create(stock_move_vals)
 
-	                # Vérifier les données de quantité et de prix
-	                try:
-	                    qty = float(qty.replace(',', '.'))
-	                    price = float(price.replace(',', '.'))
-	                    if qty <= 0 or price < 0:
-	                        _logger.error(f"Ligne {i} : Quantité ({qty}) ou prix ({price}) invalide(s). Ignorée.")
-	                        continue
-	                except ValueError:
-	                    _logger.error(f"Ligne {i} : Erreur de conversion pour quantité/prix : {qty}, {price}. Ignorée.")
-	                    continue
-
-	                # Rechercher ou créer le produit
-	                product_tmpl = self.env['product.template'].sudo().search([]).filtered(lambda p: p.ext_id == ref_prod)
-	                if not product_tmpl:
-	                    product_tmpl = self.env['product.template'].sudo().create({
-	                        "name": prod_name,
-	                        "standard_price": price,
-	                        "type": 'product',
-	                        "new_dc": ref_prod,
-	                        "available_in_pos": True
-	                    })
-
-	                    self.env['ir.model.data'].sudo().create({
-	                        "name": ref_prod,
-	                        "model": "product.template",
-	                        "res_id": product_tmpl.id
-	                    })
-
-	                # Créer le mouvement de stock
-	                stock_move_vals = {
-	                    "product_id": product_tmpl.product_variant_id.id,
-	                    "product_uom_qty": qty,
-	                    "quantity_done": qty,
-	                    "picking_id": stock_picking_id.id,
-	                    "location_id": l_source.id,
-	                    "location_dest_id": l_dest.id,
-	                    "name": product_tmpl.product_variant_id.name,
-	                    "product_uom": product_tmpl.uom_id.id
-	                }
-	                self.env['stock.move'].sudo().create(stock_move_vals)
-	            except Exception as e:
-	                _logger.error(f"Ligne {i} : Échec de traitement pour le mouvement de stock. Erreur : {e}")
-	                continue
-
-	    # Valider les pickings créés
-	    if stock_picking_ids:
+	    if stock_picking_ids and len(stock_picking_ids) > 0:
 	        for picking in stock_picking_ids:
-	            try:
-	                picking.action_confirm()
-	                picking.action_assign()
-	                picking.button_validate()
-	            except Exception as e:
-	                _logger.error(f"Erreur lors de la validation du picking {picking.name}. Erreur : {e}")
+	            picking.action_confirm()
+	            picking.action_assign()
+	            picking.button_validate()
+
 
 
 	def get_partner_location(self):
