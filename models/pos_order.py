@@ -8,92 +8,107 @@ import logging
 import paramiko
 
 class PosSession(models.Model):
-	_inherit = "pos.session"
+    _inherit = "pos.session"
 
-	reported = fields.Boolean(string="Reported", default=False)
-	account_move = fields.Many2one(string="Journal Entry", comodel_name="account.move", compute="_compute_account_move")
+    reported = fields.Boolean(string="Reported", default=False)
+    account_move = fields.Many2one(string="Journal Entry", comodel_name="account.move", compute="_compute_account_move")
 
-	def sage_sopro_pos_report(self):
-		date_today = date.today()
-		file_path = ''
-		call_type = self._context.get('call_type', False)
-		if call_type and call_type == 'button':
-			file_path = self.env.user.company_id.export_file_path
-		else:
-			file_path = self.env.user.company_id.sage_sale_export
+    def sage_sopro_pos_report(self):
+        date_today = date.today()
+        file_path = ''
+        call_type = self._context.get('call_type', False)
+        if call_type and call_type == 'button':
+            file_path = self.env.user.company_id.export_file_path
+        else:
+            file_path = self.env.user.company_id.sage_sale_export
 
-		if file_path:
-			date_str = datetime.now().strftime("%d-%m-%Y %H%M%S")
-			filename = "Facture" + str(date_str) + ".csv"
-			file = file_path + '/' + str(self.config_id.code_pdv_sage) + '/' + filename
+        if file_path:
+            date_str = datetime.now().strftime("%d-%m-%Y %H%M%S")
+            filename = "Facture" + str(date_str) + ".csv"
+            file = file_path + '/' + str(self.config_id.code_pdv_sage) + '/' + filename
 
-			logging.error(f"___________________________________________ file_path : {file} ___________________________________")
+            logging.error(f"___________________________________________ file_path : {file} ___________________________________")
 
-			# Verrouiller la session avant de procéder à l'exportation
-			self.env.cr.execute("SELECT id FROM pos_session WHERE id = %s FOR UPDATE", (self.id,))
+            # Verrouiller la session avant de procéder à l'exportation
+            self.env.cr.execute("SELECT id FROM pos_session WHERE id = %s FOR UPDATE", (self.id,))
 
-			# SSH
-			ssh = paramiko.SSHClient()
-			ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-			ssh.connect(
-				hostname=self.env.user.company_id.hostname,
-				username=self.env.user.company_id.hostusername,
-				password=self.env.user.company_id.hostmdp
-			)
-			sftp = ssh.open_sftp()
-			# END SSH
+            # SSH
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(
+                hostname=self.env.user.company_id.hostname,
+                username=self.env.user.company_id.hostusername,
+                password=self.env.user.company_id.hostmdp
+            )
+            sftp = ssh.open_sftp()
+            # END SSH
 
-			try:
-				with sftp.open(file, mode='a') as f:
-					writer = csv.writer(f, delimiter=';', quotechar='"', quoting=csv.QUOTE_NONE)
+            try:
+                with sftp.open(file, mode='a') as f:
+                    # Configuration du csv.writer pour éviter les guillemets
+                    writer = csv.writer(f, delimiter=';', quotechar='"', quoting=csv.QUOTE_NONE, escapechar='\\')
 
-					session_id = self
-					stop_date = session_id.stop_at.strftime("%d/%m/%Y")
-					writer.writerow(['E', session_id.account_move.name, stop_date, '', session_id.config_id.code_pdv_sage, session_id.config_id.souche])
+                    # Écrire l'en-tête de la session
+                    session_id = self
+                    stop_date = session_id.stop_at.strftime("%d/%m/%Y")
+                    writer.writerow(['E', session_id.account_move.name, stop_date, '', session_id.config_id.code_pdv_sage, session_id.config_id.souche])
 
-					for order in session_id.order_ids:
-						for line in order.lines:
-							if not line.product_id.product_pack:
-								time_order = order.date_order.strftime("%H:%M:%S")
-								xqty = str(line.qty).replace('.', ',')
-								xprice_subtot = str(line.price_unit).replace('.', ',')
-								xstandard_p = str(line.product_id.standard_price).replace('.', ',')
-								writer.writerow(['L', line.product_id.ext_id, xqty, xprice_subtot, xstandard_p, time_order, order.user_id.name, order.name])
-							else:
-								for p in line.product_id.product_item_ids:
-									time_order = order.date_order.strftime("%H:%M:%S")
-									xqty = str(p.quantity * line.qty).replace('.', ',')
-									xprice_subtot = str(p.unit_cost).replace('.', ',')
-									xstandard_p = str(p.product_id.standard_price).replace('.', ',')
-									writer.writerow(['L', p.product_id.ext_id, xqty, xprice_subtot, xstandard_p, time_order, order.user_id.name, order.name])
-			finally:
-				ssh.close()
-		else:
-			logging.error("No Path Found to export Sale")
+                    # Écrire les lignes de commande
+                    for order in session_id.order_ids:
+                        for line in order.lines:
+                            if not line.product_id.product_pack:
+                                time_order = order.date_order.strftime("%H:%M:%S")
+                                xqty = str(line.qty).replace('.', ',')  # Conserve la virgule
+                                xprice_subtot = str(line.price_unit).replace('.', ',')
+                                xstandard_p = str(line.product_id.standard_price).replace('.', ',')
 
-	def _compute_account_move(self):
-		for rec in self:
-			if rec.order_ids:
-				rec.account_move = rec.order_ids[0].account_move
-			else:
-				rec.account_move = None
+                                # Échapper manuellement le délimiteur (;) si présent
+                                xqty = xqty.replace(';', ',')  # Remplace ; par ,
+                                xprice_subtot = xprice_subtot.replace(';', ',')
+                                xstandard_p = xstandard_p.replace(';', ',')
 
-	@api.multi
-	def action_pos_session_closing_control(self):
-		self._check_pos_session_balance()
-		for session in self:
-			session.write({'state': 'closing_control', 'stop_at': fields.Datetime.now()})
-			if not session.config_id.cash_control:
-				session.action_pos_session_close()
+                                writer.writerow(['L', line.product_id.ext_id, xqty, xprice_subtot, xstandard_p, time_order, order.user_id.name, order.name])
+                            else:
+                                for p in line.product_id.product_item_ids:
+                                    time_order = order.date_order.strftime("%H:%M:%S")
+                                    xqty = str(p.quantity * line.qty).replace('.', ',')
+                                    xprice_subtot = str(p.unit_cost).replace('.', ',')
+                                    xstandard_p = str(p.product_id.standard_price).replace('.', ',')
 
-			# Appel immédiat à l'exportation
-			session.sage_sopro_pos_report()
+                                    # Échapper manuellement le délimiteur (;) si présent
+                                    xqty = xqty.replace(';', ',')  # Remplace ; par ,
+                                    xprice_subtot = xprice_subtot.replace(';', ',')
+                                    xstandard_p = xstandard_p.replace(';', ',')
 
-		return True
+                                    writer.writerow(['L', p.product_id.ext_id, xqty, xprice_subtot, xstandard_p, time_order, order.user_id.name, order.name])
+            finally:
+                ssh.close()
+        else:
+            logging.error("No Path Found to export Sale")
+
+    def _compute_account_move(self):
+        for rec in self:
+            if rec.order_ids:
+                rec.account_move = rec.order_ids[0].account_move
+            else:
+                rec.account_move = None
+
+    @api.multi
+    def action_pos_session_closing_control(self):
+        self._check_pos_session_balance()
+        for session in self:
+            session.write({'state': 'closing_control', 'stop_at': fields.Datetime.now()})
+            if not session.config_id.cash_control:
+                session.action_pos_session_close()
+
+            # Appel immédiat à l'exportation
+            session.sage_sopro_pos_report()
+
+        return True
 
 
 class posConfig(models.Model):
-	_inherit = "pos.config"
+    _inherit = "pos.config"
 
-	code_pdv_sage = fields.Char("Code Echope")
-	souche = fields.Char("Souche")
+    code_pdv_sage = fields.Char("Code Echope")
+    souche = fields.Char("Souche")
