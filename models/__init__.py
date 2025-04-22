@@ -5,3 +5,4 @@ from . import config_settings
 from . import pos_order
 from . import res_users
 from . import file_queue
+from . import account_bank_statement
