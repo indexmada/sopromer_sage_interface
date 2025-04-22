@@ -32,38 +32,35 @@ class PosSession(models.Model):
             # Verrouiller la session avant de procéder à l'exportation
             self.env.cr.execute("SELECT id FROM pos_session WHERE id = %s FOR UPDATE", (self.id,))
 
-            # SSH
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(
-                hostname=self.env.user.company_id.hostname,
-                username=self.env.user.company_id.hostusername,
-                password=self.env.user.company_id.hostmdp
-            )
-            sftp = ssh.open_sftp()
-            # END SSH
+            # Désactivation de l'exportation vers FTP
+            # ssh = paramiko.SSHClient()
+            # ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            # ssh.connect(
+            #     hostname=self.env.user.company_id.hostname,
+            #     username=self.env.user.company_id.hostusername,
+            #     password=self.env.user.company_id.hostmdp
+            # )
+            # sftp = ssh.open_sftp()
 
             try:
-                with sftp.open(file, mode='a') as f:
-                    # Configuration du csv.writer pour éviter les guillemets
+                # Désactivation de l'enregistrement CSV sur le serveur FTP
+                # with sftp.open(file, mode='a') as f:
+                with open(file, mode='a', newline='') as f:
                     writer = csv.writer(f, delimiter=';', quotechar='"', quoting=csv.QUOTE_NONE, escapechar='\\')
 
-                    # Écrire l'en-tête de la session
                     session_id = self
                     stop_date = session_id.stop_at.strftime("%d/%m/%Y")
                     writer.writerow(['E', session_id.account_move.name, stop_date, '', session_id.config_id.code_pdv_sage, session_id.config_id.souche])
 
-                    # Écrire les lignes de commande
                     for order in session_id.order_ids:
                         for line in order.lines:
                             if not line.product_id.product_pack:
                                 time_order = order.date_order.strftime("%H:%M:%S")
-                                xqty = str(line.qty).replace('.', ',')  # Conserve la virgule
+                                xqty = str(line.qty).replace('.', ',')
                                 xprice_subtot = str(line.price_unit).replace('.', ',')
                                 xstandard_p = str(line.product_id.standard_price).replace('.', ',')
 
-                                # Échapper manuellement le délimiteur (;) si présent
-                                xqty = xqty.replace(';', ',')  # Remplace ; par ,
+                                xqty = xqty.replace(';', ',')
                                 xprice_subtot = xprice_subtot.replace(';', ',')
                                 xstandard_p = xstandard_p.replace(';', ',')
 
@@ -75,14 +72,15 @@ class PosSession(models.Model):
                                     xprice_subtot = str(p.unit_cost).replace('.', ',')
                                     xstandard_p = str(p.product_id.standard_price).replace('.', ',')
 
-                                    # Échapper manuellement le délimiteur (;) si présent
-                                    xqty = xqty.replace(';', ',')  # Remplace ; par ,
+                                    xqty = xqty.replace(';', ',')
                                     xprice_subtot = xprice_subtot.replace(';', ',')
                                     xstandard_p = xstandard_p.replace(';', ',')
 
                                     writer.writerow(['L', p.product_id.ext_id, xqty, xprice_subtot, xstandard_p, time_order, order.user_id.name, order.name])
             finally:
-                ssh.close()
+                # ssh.close()
+                pass  # Désactivation de la fermeture SSH
+
         else:
             logging.error("No Path Found to export Sale")
 
@@ -99,7 +97,6 @@ class PosSession(models.Model):
         for session in self:
             session.write({'state': 'closing_control', 'stop_at': fields.Datetime.now()})
             if not session.config_id.cash_control:
-                # Tentative avec reprise en cas d'échec
                 max_retries = 3
                 for attempt in range(max_retries):
                     try:
@@ -112,7 +109,7 @@ class PosSession(models.Model):
                             continue
                         raise
 
-            session.sage_sopro_pos_report()
+            # session.sage_sopro_pos_report()  # Désactivation de l'appel à l'exportation
 
         return True
 
