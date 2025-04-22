@@ -99,9 +99,19 @@ class PosSession(models.Model):
         for session in self:
             session.write({'state': 'closing_control', 'stop_at': fields.Datetime.now()})
             if not session.config_id.cash_control:
-                session.action_pos_session_close()
+                # Tentative avec reprise en cas d'échec
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        session.action_pos_session_close()
+                        break
+                    except Exception as e:
+                        if 'could not obtain lock' in str(e) and attempt < max_retries - 1:
+                            import time
+                            time.sleep(2 * (attempt + 1))  # Délai exponentiel
+                            continue
+                        raise
 
-            # Appel immédiat à l'exportation
             session.sage_sopro_pos_report()
 
         return True
