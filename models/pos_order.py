@@ -95,23 +95,27 @@ class PosSession(models.Model):
 
     @api.multi
     def action_pos_session_closing_control(self):
-        try:
-            self._check_pos_session_balance()
-            for session in self:
-                # Réinitialiser la transaction si nécessaire
-                if self.env.cr.isolation_level:
-                    self.env.cr.execute("ROLLBACK")
-                    self.env.cr.execute("BEGIN")
-                
-                session.write({'state': 'closing_control', 'stop_at': fields.Datetime.now()})
-                if not session.config_id.cash_control:
-                    session.with_context(retry_on_lock=True).action_pos_session_close()
-                
-                session.sage_sopro_pos_report()
-            return True
-        except Exception as e:
-            self.env.cr.rollback()
-            raise
+        self._check_pos_session_balance()
+        for session in self:
+            session.write({'state': 'closing_control', 'stop_at': fields.Datetime.now()})
+            if not session.config_id.cash_control:
+                # Tentative avec reprise en cas d'échec
+                max_retries = 3
+                for attempt in range(max_retries):
+                    try:
+                        session.action_pos_session_close()
+                        break
+                    except Exception as e:
+                        if 'could not obtain lock' in str(e) and attempt < max_retries - 1:
+                            import time
+                            time.sleep(2 * (attempt + 1))  # Délai exponentiel
+                            continue
+                        raise
+
+            session.sage_sopro_pos_report()
+
+        return True
+
 
 class posConfig(models.Model):
     _inherit = "pos.config"
