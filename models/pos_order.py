@@ -110,6 +110,11 @@ class PosSession(models.Model):
             except Exception as e:
                 _logger.exception(f"Erreur lors du transfert SFTP : {e}")
 
+    def clean(value):
+    if value:
+        return str(value).strip()  # Retire les espaces inutiles en début et fin de chaîne
+    return ''
+
 
     def _compute_account_move(self):
         for rec in self:
