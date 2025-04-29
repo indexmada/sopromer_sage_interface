@@ -32,20 +32,19 @@ class PosSession(models.Model):
             # Verrouiller la session avant de procéder à l'exportation
             self.env.cr.execute("SELECT id FROM pos_session WHERE id = %s FOR UPDATE", (self.id,))
 
-            # Désactivation de l'exportation vers FTP
-            # ssh = paramiko.SSHClient()
-            # ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            # ssh.connect(
-            #     hostname=self.env.user.company_id.hostname,
-            #     username=self.env.user.company_id.hostusername,
-            #     password=self.env.user.company_id.hostmdp
-            # )
-            # sftp = ssh.open_sftp()
+            # Connexion SSH et SFTP activée
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(
+                hostname=self.env.user.company_id.hostname,
+                username=self.env.user.company_id.hostusername,
+                password=self.env.user.company_id.hostmdp
+            )
+            sftp = ssh.open_sftp()
 
             try:
-                # Désactivation de l'enregistrement CSV sur le serveur FTP
-                # with sftp.open(file, mode='a') as f:
-                with open(file, mode='a', newline='') as f:
+                # Enregistrement CSV sur le serveur FTP activé
+                with sftp.open(file, mode='a') as f:
                     writer = csv.writer(f, delimiter=';', quotechar='"', quoting=csv.QUOTE_NONE, escapechar='\\')
 
                     session_id = self
@@ -63,7 +62,6 @@ class PosSession(models.Model):
                                 xqty = xqty.replace(';', ',')
                                 xprice_subtot = xprice_subtot.replace(';', ',')
                                 xstandard_p = xstandard_p.replace(';', ',')
-
                                 writer.writerow(['L', line.product_id.ext_id, xqty, xprice_subtot, xstandard_p, time_order, order.user_id.name, order.name])
                             else:
                                 for p in line.product_id.product_item_ids:
@@ -75,11 +73,9 @@ class PosSession(models.Model):
                                     xqty = xqty.replace(';', ',')
                                     xprice_subtot = xprice_subtot.replace(';', ',')
                                     xstandard_p = xstandard_p.replace(';', ',')
-
                                     writer.writerow(['L', p.product_id.ext_id, xqty, xprice_subtot, xstandard_p, time_order, order.user_id.name, order.name])
             finally:
-                # ssh.close()
-                pass  # Désactivation de la fermeture SSH
+                ssh.close()
 
         else:
             logging.error("No Path Found to export Sale")
@@ -109,7 +105,7 @@ class PosSession(models.Model):
                             continue
                         raise
 
-            # session.sage_sopro_pos_report()  # Désactivation de l'appel à l'exportation
+            session.sage_sopro_pos_report()  # Réactivation de l'appel à l'exportation
 
         return True
 
