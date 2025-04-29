@@ -5,10 +5,7 @@ from datetime import datetime, date
 import os
 import csv
 import logging
-import tempfile
 import paramiko
-
-_logger = logging.getLogger(__name__)
 
 class PosSession(models.Model):
     _inherit = "pos.session"
@@ -16,110 +13,69 @@ class PosSession(models.Model):
     reported = fields.Boolean(string="Reported", default=False)
     account_move = fields.Many2one(string="Journal Entry", comodel_name="account.move", compute="_compute_account_move")
 
-    @api.multi
     def sage_sopro_pos_report(self):
-        for session in self:
-            call_type = self._context.get('call_type', False)
-            export_folder = session.env.user.company_id.export_file_path if call_type == 'button' else session.env.user.company_id.sage_sale_export
+        date_today = date.today()
+        file_path = ''
+        call_type = self._context.get('call_type', False)
+        if call_type and call_type == 'button':
+            file_path = self.env.user.company_id.export_file_path
+        else:
+            file_path = self.env.user.company_id.sage_sale_export
 
-            if not export_folder:
-                _logger.error("No Path Found to export Sale")
-                return
+        if file_path:
+            date_str = datetime.now().strftime("%d-%m-%Y %H%M%S")
+            filename = "Facture" + str(date_str) + ".csv"
+            file = file_path + '/' + str(self.config_id.code_pdv_sage) + '/' + filename
 
-            stop_date = session.stop_at.strftime("%d/%m/%Y") if session.stop_at else ''
-            date_export = datetime.now().strftime("%d-%m-%Y %H%M%S")
-            filename = f"Facture{date_export}.csv"
+            logging.error(f"___________________________________________ file_path : {file} ___________________________________")
 
-            # 🔧 Génération du fichier CSV en local (temporaire)
-            with tempfile.NamedTemporaryFile(mode='w', delete=False, newline='', encoding='utf-8') as temp_file:
-                writer = csv.writer(temp_file, delimiter=';', quotechar='"', quoting=csv.QUOTE_NONE, escapechar='\\')
+            # Connexion SSH et SFTP activée
+            ssh = paramiko.SSHClient()
+            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+            ssh.connect(
+                hostname=self.env.user.company_id.hostname,
+                username=self.env.user.company_id.hostusername,
+                password=self.env.user.company_id.hostmdp
+            )
+            sftp = ssh.open_sftp()
 
-                writer.writerow([
-                    'E',
-                    session.account_move.name or '',
-                    stop_date,
-                    '',
-                    session.config_id.code_pdv_sage or '',
-                    session.config_id.souche or ''
-                ])
-
-                for order in session.order_ids:
-                    time_order = order.date_order.strftime("%H:%M:%S")
-                    username = order.user_id.name
-                    ordername = order.name
-
-                    for line in order.lines:
-                        if not line.product_id.product_pack:
-                            writer.writerow([
-                                'L',
-                                self.clean(line.product_id.ext_id),
-                                self.clean_qty(line.qty),
-                                self.clean_price(line.price_unit),
-                                self.clean_price(line.product_id.standard_price),
-                                time_order,
-                                username,
-                                ordername
-                            ])
-                        else:
-                            for p in line.product_id.product_item_ids:
-                                writer.writerow([
-                                    'L',
-                                    self.clean(p.product_id.ext_id),
-                                    self.clean_qty(p.quantity * line.qty),
-                                    self.clean_price(p.unit_cost),
-                                    self.clean_price(p.product_id.standard_price),
-                                    time_order,
-                                    username,
-                                    ordername
-                                ])
-
-            # 🔒 Envoi SFTP avec Paramiko
             try:
-                hostname = "ftp.tonserveur.com"       # à adapter
-                port = 22
-                username = "ton_user"
-                password = "ton_mot_de_passe"
+                # Enregistrement CSV sur le serveur FTP activé
+                with sftp.open(file, mode='a') as f:
+                    writer = csv.writer(f, delimiter=';', quotechar='"', quoting=csv.QUOTE_NONE, escapechar='\\')
 
-                transport = paramiko.Transport((hostname, port))
-                transport.connect(username=username, password=password)
-                sftp = paramiko.SFTPClient.from_transport(transport)
+                    session_id = self
+                    stop_date = session_id.stop_at.strftime("%d/%m/%Y")
+                    writer.writerow(['E', session_id.account_move.name, stop_date, '', session_id.config_id.code_pdv_sage, session_id.config_id.souche])
 
-                remote_dir = os.path.join(export_folder, session.config_id.code_pdv_sage)
-                remote_path = os.path.join(remote_dir, filename)
+                    for order in session_id.order_ids:
+                        for line in order.lines:
+                            if not line.product_id.product_pack:
+                                time_order = order.date_order.strftime("%H:%M:%S")
+                                xqty = str(line.qty).replace('.', ',')
+                                xprice_subtot = str(line.price_unit).replace('.', ',')
+                                xstandard_p = str(line.product_id.standard_price).replace('.', ',')
 
-                # Crée les dossiers distants si besoin
-                try:
-                    sftp.chdir(remote_dir)
-                except IOError:
-                    # Dossier distant n'existe pas, on le crée
-                    parts = remote_dir.strip('/').split('/')
-                    path = ''
-                    for part in parts:
-                        path += '/' + part
-                        try:
-                            sftp.chdir(path)
-                        except IOError:
-                            sftp.mkdir(path)
-                            sftp.chdir(path)
+                                xqty = xqty.replace(';', ',')
+                                xprice_subtot = xprice_subtot.replace(';', ',')
+                                xstandard_p = xstandard_p.replace(';', ',')
+                                writer.writerow(['L', line.product_id.ext_id, xqty, xprice_subtot, xstandard_p, time_order, order.user_id.name, order.name])
+                            else:
+                                for p in line.product_id.product_item_ids:
+                                    time_order = order.date_order.strftime("%H:%M:%S")
+                                    xqty = str(p.quantity * line.qty).replace('.', ',')
+                                    xprice_subtot = str(p.unit_cost).replace('.', ',')
+                                    xstandard_p = str(p.product_id.standard_price).replace('.', ',')
 
-                sftp.put(temp_file.name, remote_path)
-                _logger.info(f"CSV transféré avec succès : {remote_path}")
-                sftp.close()
-                transport.close()
+                                    xqty = xqty.replace(';', ',')
+                                    xprice_subtot = xprice_subtot.replace(';', ',')
+                                    xstandard_p = xstandard_p.replace(';', ',')
+                                    writer.writerow(['L', p.product_id.ext_id, xqty, xprice_subtot, xstandard_p, time_order, order.user_id.name, order.name])
+            finally:
+                ssh.close()
 
-            except Exception as e:
-                _logger.exception(f"Erreur lors du transfert SFTP : {e}")
-
-    def clean(self, value):
-        if value:
-            return str(value).strip()  # Retire les espaces inutiles en début et fin de chaîne
-        return ''
-
-    def clean_qty(self, qty):
-        return str(qty).replace('.', ',') if qty else '0'
-
-    def clean_price(self, price):
-        return f'{price:.2f}' if price else '0.00'
+        else:
+            logging.error("No Path Found to export Sale")
 
     def _compute_account_move(self):
         for rec in self:
