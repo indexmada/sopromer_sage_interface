@@ -52,10 +52,10 @@ class PosSession(models.Model):
                         if not line.product_id.product_pack:
                             writer.writerow([
                                 'L',
-                                clean(line.product_id.ext_id),
-                                clean_qty(line.qty),
-                                clean_price(line.price_unit),
-                                clean_price(line.product_id.standard_price),
+                                self.clean(line.product_id.ext_id),
+                                self.clean_qty(line.qty),
+                                self.clean_price(line.price_unit),
+                                self.clean_price(line.product_id.standard_price),
                                 time_order,
                                 username,
                                 ordername
@@ -64,10 +64,10 @@ class PosSession(models.Model):
                             for p in line.product_id.product_item_ids:
                                 writer.writerow([
                                     'L',
-                                    clean(p.product_id.ext_id),
-                                    clean_qty(p.quantity * line.qty),
-                                    clean_price(p.unit_cost),
-                                    clean_price(p.product_id.standard_price),
+                                    self.clean(p.product_id.ext_id),
+                                    self.clean_qty(p.quantity * line.qty),
+                                    self.clean_price(p.unit_cost),
+                                    self.clean_price(p.product_id.standard_price),
                                     time_order,
                                     username,
                                     ordername
@@ -110,11 +110,16 @@ class PosSession(models.Model):
             except Exception as e:
                 _logger.exception(f"Erreur lors du transfert SFTP : {e}")
 
-    def clean(value):
-    if value:
-        return str(value).strip()  # Retire les espaces inutiles en début et fin de chaîne
-    return ''
+    def clean(self, value):
+        if value:
+            return str(value).strip()  # Retire les espaces inutiles en début et fin de chaîne
+        return ''
 
+    def clean_qty(self, qty):
+        return str(qty).replace('.', ',') if qty else '0'
+
+    def clean_price(self, price):
+        return f'{price:.2f}' if price else '0.00'
 
     def _compute_account_move(self):
         for rec in self:
