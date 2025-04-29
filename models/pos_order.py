@@ -8,6 +8,9 @@ import logging
 import paramiko
 import socket
 
+_logger = logging.getLogger(__name__)
+
+
 class PosSession(models.Model):
     _inherit = "pos.session"
 
