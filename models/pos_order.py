@@ -13,72 +13,84 @@ class PosSession(models.Model):
     reported = fields.Boolean(string="Reported", default=False)
     account_move = fields.Many2one(string="Journal Entry", comodel_name="account.move", compute="_compute_account_move")
 
+    @api.multi
     def sage_sopro_pos_report(self):
-        date_today = date.today()
-        file_path = ''
-        call_type = self._context.get('call_type', False)
-        if call_type and call_type == 'button':
-            file_path = self.env.user.company_id.export_file_path
-        else:
-            file_path = self.env.user.company_id.sage_sale_export
+        for session in self:
+            date_today = date.today()
+            call_type = self._context.get('call_type', False)
 
-        if file_path:
-            date_str = datetime.now().strftime("%d-%m-%Y %H%M%S")
-            filename = "Facture" + str(date_str) + ".csv"
-            file = file_path + '/' + str(self.config_id.code_pdv_sage) + '/' + filename
+            if call_type == 'button':
+                file_path = session.env.user.company_id.export_file_path
+            else:
+                file_path = session.env.user.company_id.sage_sale_export
 
-            logging.error(f"___________________________________________ file_path : {file} ___________________________________")
+            if not file_path:
+                _logger.error("No Path Found to export Sale")
+                return
 
-            # Verrouiller la session avant de procéder à l'exportation
-            self.env.cr.execute("SELECT id FROM pos_session WHERE id = %s FOR UPDATE", (self.id,))
+            stop_date = session.stop_at.strftime("%d/%m/%Y") if session.stop_at else ''
+            date_export = datetime.now().strftime("%d-%m-%Y %H%M%S")
+            final_path = os.path.join(file_path, session.config_id.code_pdv_sage, f"Facture{date_export}.csv")
 
-            # Connexion SSH et SFTP activée
-            ssh = paramiko.SSHClient()
-            ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            ssh.connect(
-                hostname=self.env.user.company_id.hostname,
-                username=self.env.user.company_id.hostusername,
-                password=self.env.user.company_id.hostmdp
-            )
-            sftp = ssh.open_sftp()
+            _logger.error(f"_____________________ file_path : {final_path} ____________________")
+
+            # Création des dossiers si besoin
+            os.makedirs(os.path.dirname(final_path), exist_ok=True)
 
             try:
-                # Enregistrement CSV sur le serveur FTP activé
-                with sftp.open(file, mode='a') as f:
-                    writer = csv.writer(f, delimiter=';', quotechar='"', quoting=csv.QUOTE_NONE, escapechar='\\')
+                with open(final_path, 'a', newline='', encoding='utf-8') as file:
+                    writer = csv.writer(file, delimiter=';', quotechar='"', quoting=csv.QUOTE_NONE, escapechar='\\')
 
-                    session_id = self
-                    stop_date = session_id.stop_at.strftime("%d/%m/%Y")
-                    writer.writerow(['E', session_id.account_move.name, stop_date, '', session_id.config_id.code_pdv_sage, session_id.config_id.souche])
+                    writer.writerow([
+                        'E',
+                        session.account_move.name or '',
+                        stop_date,
+                        '',
+                        session.config_id.code_pdv_sage or '',
+                        session.config_id.souche or ''
+                    ])
 
-                    for order in session_id.order_ids:
+                    for order in session.order_ids:
+                        time_order = order.date_order.strftime("%H:%M:%S")
+                        username = order.user_id.name
+                        ordername = order.name
+
                         for line in order.lines:
                             if not line.product_id.product_pack:
-                                time_order = order.date_order.strftime("%H:%M:%S")
-                                xqty = str(line.qty).replace('.', ',')
-                                xprice_subtot = str(line.price_unit).replace('.', ',')
-                                xstandard_p = str(line.product_id.standard_price).replace('.', ',')
-
-                                xqty = xqty.replace(';', ',')
-                                xprice_subtot = xprice_subtot.replace(';', ',')
-                                xstandard_p = xstandard_p.replace(';', ',')
-                                writer.writerow(['L', line.product_id.ext_id, xqty, xprice_subtot, xstandard_p, time_order, order.user_id.name, order.name])
+                                writer.writerow([
+                                    'L',
+                                    clean(line.product_id.ext_id),
+                                    clean_qty(line.qty),
+                                    clean_price(line.price_unit),
+                                    clean_price(line.product_id.standard_price),
+                                    time_order,
+                                    username,
+                                    ordername
+                                ])
                             else:
                                 for p in line.product_id.product_item_ids:
-                                    time_order = order.date_order.strftime("%H:%M:%S")
-                                    xqty = str(p.quantity * line.qty).replace('.', ',')
-                                    xprice_subtot = str(p.unit_cost).replace('.', ',')
-                                    xstandard_p = str(p.product_id.standard_price).replace('.', ',')
+                                    writer.writerow([
+                                        'L',
+                                        clean(p.product_id.ext_id),
+                                        clean_qty(p.quantity * line.qty),
+                                        clean_price(p.unit_cost),
+                                        clean_price(p.product_id.standard_price),
+                                        time_order,
+                                        username,
+                                        ordername
+                                    ])
+            except Exception as e:
+                _logger.exception(f"Erreur lors de l’écriture du fichier CSV : {e}")
 
-                                    xqty = xqty.replace(';', ',')
-                                    xprice_subtot = xprice_subtot.replace(';', ',')
-                                    xstandard_p = xstandard_p.replace(';', ',')
-                                    writer.writerow(['L', p.product_id.ext_id, xqty, xprice_subtot, xstandard_p, time_order, order.user_id.name, order.name])
-            finally:
-                ssh.close()
+    def clean(val):
+        return str(val).replace(';', ',') if val else ''
 
-        else:
-            logging.error("No Path Found to export Sale")
+    def clean_qty(val):
+        return str(val).replace('.', ',').replace(';', ',') if val else '0'
+
+    def clean_price(val):
+        return str(round(val or 0, 2)).replace('.', ',').replace(';', ',')
+
 
     def _compute_account_move(self):
         for rec in self:
