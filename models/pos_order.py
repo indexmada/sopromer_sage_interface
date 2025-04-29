@@ -5,6 +5,7 @@ from datetime import datetime, date
 import os
 import csv
 import logging
+import tempfile
 import paramiko
 
 _logger = logging.getLogger(__name__)
